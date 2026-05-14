@@ -15,7 +15,7 @@ def _write_config(tmp_path, data):
 def test_load_valid_config(config_file):
     cfg = load_config(config_file)
     assert cfg.poll_interval == 60
-    assert "dummy_llm.py" in cfg.llm_command
+    assert any("dummy_llm.py" in part for part in cfg.llm_command)
     assert len(cfg.sources) == 1
     assert cfg.sources[0].name == "test-feed"
     assert cfg.sources[0].type == "rss"
@@ -100,6 +100,19 @@ def test_load_config_defaults(tmp_path):
     assert cfg.confidence_threshold == 0.5
     assert cfg.max_articles_per_source == 10
     assert cfg.state_dir == "./state"
+    assert cfg.llm_command == ["echo", "test"]
+    assert cfg.llm_env == {}
+
+
+def test_load_config_env_and_list_command(tmp_path):
+    path = _write_config(tmp_path, {
+        "llm_command": ["/usr/bin/python3", "script.py"],
+        "llm_env": {"API_KEY": "secret"},
+        "sources": [{"name": "x", "type": "rss", "url": "http://x"}],
+    })
+    cfg = load_config(path)
+    assert cfg.llm_command == ["/usr/bin/python3", "script.py"]
+    assert cfg.llm_env == {"API_KEY": "secret"}
 
 
 def test_source_config_default_tier():

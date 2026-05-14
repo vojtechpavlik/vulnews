@@ -5,7 +5,7 @@ import pytest
 import respx
 
 from vulnews.config import SourceConfig
-from vulnews.sources import GitHubAdvisorySource, RSSSource, strip_html
+from vulnews.sources import GitHubAdvisorySource, RSSSource, scrub_text, strip_html
 from vulnews.state import FeedState
 
 
@@ -23,6 +23,19 @@ def test_strip_html_no_tags():
 
 def test_strip_html_entities():
     assert strip_html("a &amp; b") == "a & b"
+
+
+def test_scrub_text():
+    # Basic ASCII
+    assert scrub_text("Hello World") == "Hello World"
+    # Remove non-ASCII
+    assert scrub_text("Hello \u1234 World") == "Hello  World"
+    # Remove excluded chars: []{}\|&^#!;
+    assert scrub_text("Safe[Unsafe] {Unsafe}") == "SafeUnsafe Unsafe"
+    # Preserved chars: <>=,./?-+ etc
+    assert scrub_text("v >= 1.2.3, version < 2.0") == "v >= 1.2.3, version < 2.0"
+    # Max length
+    assert scrub_text("ABC", max_len=2) == "AB"
 
 
 @respx.mock
@@ -108,6 +121,18 @@ def test_rss_source_poll_atom_feed(source_config, atom_feed_xml):
     assert len(articles) == 1
     assert articles[0].title == "Malware found in popular npm package"
     assert "malware" in articles[0].content.lower()
+
+
+@respx.mock
+def test_rss_source_poll_malformed(source_config):
+    # Malformed XML that triggers bozo bit
+    respx.get("https://example.com/feed.xml").mock(
+        return_value=httpx.Response(200, text="<invalid>>xml<")
+    )
+    source = RSSSource(source_config)
+    articles, state = source.poll(FeedState())
+
+    assert articles == []
 
 
 def test_github_advisory_source_not_implemented(source_config):
