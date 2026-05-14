@@ -10,6 +10,7 @@ from vulnews.llm import LLMResult
 class ImpactResult:
     project: str
     package: str
+    version: str | None
     updated_during_window: bool
     malicious_files_present: list[str]
     changelog_excerpt: str
@@ -32,6 +33,8 @@ def report_findings(result: LLMResult, impacts: list[ImpactResult]) -> None:
     for imp in impacts:
         print(f"  Project: {imp.project}")
         print(f"  Package: {imp.package}")
+        if imp.version:
+            print(f"  Version: {imp.version}")
         print(f"  Risk:    {imp.risk_level}")
 
         reasons = []

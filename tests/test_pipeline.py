@@ -81,10 +81,12 @@ def test_assess_impact_high_risk(monkeypatch):
         "index.js", "package.json",
     ])
     monkeypatch.setattr("vulnews.pipeline.get_changelog", lambda p, pkg: "changelog text")
+    monkeypatch.setattr("vulnews.pipeline.get_version", lambda p, pkg: "1.0.4")
 
     result = _assess_impact(OBSPackage("Factory", "pkg"), _make_llm_result())
     assert result.risk_level == "HIGH"
     assert result.updated_during_window is True
+    assert result.version == "1.0.4"
     assert "index.js" in result.malicious_files_present
 
 
@@ -94,6 +96,7 @@ def test_assess_impact_medium_risk_window_only(monkeypatch):
     ])
     monkeypatch.setattr("vulnews.pipeline.list_files", lambda p, pkg: ["package.json"])
     monkeypatch.setattr("vulnews.pipeline.get_changelog", lambda p, pkg: "")
+    monkeypatch.setattr("vulnews.pipeline.get_version", lambda p, pkg: "1.0.4")
 
     result = _assess_impact(OBSPackage("Factory", "pkg"), _make_llm_result())
     assert result.risk_level == "MEDIUM"
@@ -107,6 +110,7 @@ def test_assess_impact_medium_risk_files_only(monkeypatch):
     ])
     monkeypatch.setattr("vulnews.pipeline.list_files", lambda p, pkg: ["index.js"])
     monkeypatch.setattr("vulnews.pipeline.get_changelog", lambda p, pkg: "")
+    monkeypatch.setattr("vulnews.pipeline.get_version", lambda p, pkg: "1.0.4")
 
     result = _assess_impact(OBSPackage("Factory", "pkg"), _make_llm_result())
     assert result.risk_level == "MEDIUM"
@@ -120,6 +124,7 @@ def test_assess_impact_low_risk(monkeypatch):
     ])
     monkeypatch.setattr("vulnews.pipeline.list_files", lambda p, pkg: ["safe.js"])
     monkeypatch.setattr("vulnews.pipeline.get_changelog", lambda p, pkg: "")
+    monkeypatch.setattr("vulnews.pipeline.get_version", lambda p, pkg: "1.0.4")
 
     result = _assess_impact(OBSPackage("Factory", "pkg"), _make_llm_result())
     assert result.risk_level == "LOW"
@@ -130,6 +135,7 @@ def test_assess_impact_changelog_excerpt(monkeypatch):
     monkeypatch.setattr("vulnews.pipeline.get_log", lambda p, pkg: [])
     monkeypatch.setattr("vulnews.pipeline.list_files", lambda p, pkg: [])
     monkeypatch.setattr("vulnews.pipeline.get_changelog", lambda p, pkg: long_changelog)
+    monkeypatch.setattr("vulnews.pipeline.get_version", lambda p, pkg: "1.0.4")
 
     result = _assess_impact(OBSPackage("Factory", "pkg"), _make_llm_result())
     assert result.changelog_excerpt.count("\n") <= 19
@@ -237,6 +243,7 @@ def test_process_article_new_compromise(tmp_path, monkeypatch):
     monkeypatch.setattr("vulnews.pipeline._assess_impact",
                         lambda obs_pkg, result: ImpactResult(
                             project="Factory", package="pkg",
+                            version="1.0.4",
                             updated_during_window=True,
                             malicious_files_present=["index.js"],
                             changelog_excerpt="", risk_level="HIGH",

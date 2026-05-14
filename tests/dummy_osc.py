@@ -94,6 +94,10 @@ def main():
         filename = args[-1] if len(args) >= 4 else ""
         if filename.endswith(".changes"):
             print(CHANGELOG, end="")
+        elif filename.endswith(".spec"):
+            print("Name: nodejs-evil-package")
+            print("Version: 1.0.4")
+            print("Release: 0")
         else:
             print(f"# dummy content for {filename}")
 

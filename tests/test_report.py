@@ -25,6 +25,7 @@ def _make_impact(**overrides):
     defaults = dict(
         project="openSUSE:Factory",
         package="nodejs-evil-package",
+        version="1.0.4",
         updated_during_window=False,
         malicious_files_present=[],
         changelog_excerpt="",

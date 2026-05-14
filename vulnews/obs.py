@@ -87,6 +87,33 @@ def search_package(package_name: str) -> list[OBSPackage]:
     return results
 
 
+def get_version(project: str, package: str) -> str | None:
+    filenames = list_files(project, package)
+    spec_file = None
+    for fn in filenames:
+        if fn.endswith(".spec"):
+            spec_file = fn
+            break
+
+    if not spec_file:
+        return None
+
+    try:
+        proc = _run_osc("cat", project, package, spec_file)
+    except (subprocess.TimeoutExpired, OSError) as e:
+        log.warning("osc cat failed for %s/%s: %s", project, package, e)
+        return None
+
+    if proc.returncode != 0:
+        return None
+
+    for line in proc.stdout.splitlines():
+        if line.startswith("Version:"):
+            return line.split(":", 1)[1].strip()
+
+    return None
+
+
 def get_changelog(project: str, package: str) -> str:
     filenames = list_files(project, package)
     changes_file = None

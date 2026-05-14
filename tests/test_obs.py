@@ -10,6 +10,7 @@ from vulnews.obs import (
     OBSPackage,
     get_changelog,
     get_log,
+    get_version,
     list_files,
     obs_package_names,
     search_package,
@@ -170,3 +171,10 @@ def test_get_changelog_no_changes_file(monkeypatch):
     monkeypatch.setattr("vulnews.obs.list_files",
                         lambda p, pkg: ["file.spec", "file.tar.gz"])
     assert get_changelog("proj", "pkg") == ""
+
+# --- get_version tests ---
+
+
+def test_get_version(mock_osc):
+    version = get_version("openSUSE:Factory", "nodejs-evil-package")
+    assert version == "1.0.4"

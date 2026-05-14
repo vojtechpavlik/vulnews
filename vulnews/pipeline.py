@@ -12,6 +12,7 @@ from vulnews.obs import (
     OBSPackage,
     get_changelog,
     get_log,
+    get_version,
     list_files,
     obs_package_names,
     search_package,
@@ -160,6 +161,12 @@ def _assess_impact(obs_pkg: OBSPackage, result: LLMResult) -> ImpactResult:
     changelog_excerpt = ""
     malicious_files_present: list[str] = []
 
+    version = get_version(obs_pkg.project, obs_pkg.package)
+    version_match = False
+    if version and result.affected_versions:
+        if version in result.affected_versions:
+            version_match = True
+
     entries = get_log(obs_pkg.project, obs_pkg.package)
     if result.compromised_timeframe_start or result.compromised_timeframe_end:
         for entry in entries:
@@ -185,7 +192,7 @@ def _assess_impact(obs_pkg: OBSPackage, result: LLMResult) -> ImpactResult:
 
     if updated_during_window and malicious_files_present:
         risk = "HIGH"
-    elif updated_during_window or malicious_files_present:
+    elif updated_during_window or malicious_files_present or version_match:
         risk = "MEDIUM"
     else:
         risk = "LOW"
@@ -193,6 +200,7 @@ def _assess_impact(obs_pkg: OBSPackage, result: LLMResult) -> ImpactResult:
     return ImpactResult(
         project=obs_pkg.project,
         package=obs_pkg.package,
+        version=version,
         updated_during_window=updated_during_window,
         malicious_files_present=malicious_files_present,
         changelog_excerpt=changelog_excerpt,
