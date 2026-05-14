@@ -1,0 +1,132 @@
+# VulNews configuration
+# Copy this to config.yaml and adjust as needed.
+
+# Polling interval in seconds (daemon mode only).
+poll_interval: 300
+
+# Maximum articles to process per source per poll cycle.
+# Prevents excessive LLM calls on first run.
+max_articles_per_source: 10
+
+# Minimum confidence threshold for LLM compromise detection (0.0 - 1.0).
+confidence_threshold: 0.5
+
+# Directory for persistent state (ETag cache, compromise database).
+state_dir: ./state
+
+# LLM command. Article text is piped via stdin.
+# Must produce JSON on stdout matching the expected schema.
+llm_command: >-
+  gemini -p "You are a supply chain security analyst. Read the article
+  provided on stdin. Determine if it describes a NEW supply chain compromise
+  -- meaning an actual compromise of a package in a software repository (npm,
+  PyPI, RubyGems, Cargo, Maven, NuGet, Go modules, OBS, etc.), a build
+  system, or a distribution channel.
+
+  This is NOT about general CVE vulnerabilities, security advisories about
+  bugs, or theoretical attack vectors. Only flag articles about CONFIRMED
+  compromises where malicious code was actually inserted into a package or
+  build artifact.
+
+  Respond with ONLY valid JSON (no markdown fences, no commentary). Schema:
+  {\"is_compromise\": bool, \"confidence\": float 0-1,
+  \"package_name\": string or null,
+  \"package_ecosystem\": string or null (e.g. npm/pypi/rubygems/maven/cargo),
+  \"affected_versions\": string or null (e.g. \">=2.1.0,<2.1.5\"),
+  \"compromised_timeframe\": {\"start\": ISO-8601 or null, \"end\": ISO-8601 or null},
+  \"malicious_files\": [string] (filenames with malicious code, empty if unknown),
+  \"malicious_behavior\": string or null (brief description of the payload),
+  \"summary\": string (one-paragraph summary)}.
+
+  If the article does NOT describe a supply chain compromise, respond:
+  {\"is_compromise\": false, \"confidence\": 0.0, \"package_name\": null,
+  \"package_ecosystem\": null, \"affected_versions\": null,
+  \"compromised_timeframe\": {\"start\": null, \"end\": null},
+  \"malicious_files\": [], \"malicious_behavior\": null,
+  \"summary\": \"Not a supply chain compromise.\"}" --skip-trust
+
+# Feed sources.
+# Types: rss (RSS/Atom polling), github_advisory (stub, not yet implemented).
+# Tiers: 1 = real-time ingestion, 2 = deep forensics, 3 = foundational.
+sources:
+  # --- Tier 1: Real-time ingestion and pre-execution telemetry ---
+
+  - name: socket-atom
+    type: rss
+    url: https://socket.dev/api/feed.atom
+    tier: 1
+
+  - name: socket-json
+    type: rss
+    url: https://socket.dev/api/feed.json
+    tier: 1
+
+  - name: stepsecurity
+    type: rss
+    url: https://www.stepsecurity.io/blog
+    tier: 1
+
+  - name: phylum
+    type: rss
+    url: https://blog.phylum.io/rss/
+    tier: 1
+
+  # --- Tier 2: Deep forensics, reachability, cloud-native context ---
+
+  - name: wiz
+    type: rss
+    url: https://www.wiz.io/feed/rss.xml
+    tier: 2
+
+  - name: unit42
+    type: rss
+    url: http://researchcenter.paloaltonetworks.com/unit42/feed/
+    tier: 2
+
+  - name: reversinglabs
+    type: rss
+    url: https://blog.reversinglabs.com/blog/rss.xml
+    tier: 2
+
+  - name: endorlabs
+    type: rss
+    url: https://www.endorlabs.com/feed
+    tier: 2
+
+  - name: checkmarx
+    type: rss
+    url: https://checkmarx.com/feed
+    tier: 2
+
+  - name: snyk
+    type: rss
+    url: https://snyk.io/blog/feed/
+    tier: 2
+
+  # --- Tier 3: Foundational and domain-specific ---
+
+  - name: oss-security
+    type: rss
+    url: https://seclists.org/rss/oss-sec.rss
+    tier: 3
+
+  - name: openssf
+    type: rss
+    url: https://openssf.org/category/blog/feed/
+    tier: 3
+
+  - name: bleepingcomputer
+    type: rss
+    url: https://www.bleepingcomputer.com/feed/
+    tier: 3
+
+  - name: sansec
+    type: rss
+    url: https://sansec.io/feed
+    tier: 3
+
+  # --- Future: Push notification sources ---
+  # - name: github-advisory
+  #   type: github_advisory
+  #   url: https://api.github.com/advisories
+  #   tier: 1
