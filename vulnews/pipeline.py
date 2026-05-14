@@ -87,7 +87,7 @@ class Pipeline:
             log.info("[dry-run] Skipping LLM/OBS for: %s", article.url)
             return
 
-        result = analyze_article(article, self.config.llm_command, self.config.llm_env)
+        result = analyze_article(article, self.config)
         if result is None:
             log.warning("LLM analysis failed for: %s", article.title)
             return

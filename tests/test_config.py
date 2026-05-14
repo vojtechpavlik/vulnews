@@ -51,8 +51,9 @@ def test_load_config_no_sources(tmp_path):
         load_config(path)
 
 
-def test_load_config_no_llm_command(tmp_path):
+def test_load_config_no_llm_command_external(tmp_path):
     path = _write_config(tmp_path, {
+        "llm_type": "external",
         "sources": [{"name": "x", "type": "rss", "url": "http://x"}],
     })
     with pytest.raises(SystemExit):
