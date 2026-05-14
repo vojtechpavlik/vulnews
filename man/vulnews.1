@@ -1,0 +1,89 @@
+.TH VULNEWS 1 "2026-05-14" "0.1.0" "vulnews"
+.SH NAME
+vulnews \- Supply chain vulnerability notifier for SUSE/openSUSE
+.SH SYNOPSIS
+.B vulnews
+.RB [ \-c | \-\-config ]
+.I CONFIG
+.RB [ \-\-one\-shot ]
+.RB [ \-\-source
+.IR NAME ]
+.RB [ \-\-dry\-run ]
+.RB [ \-v | \-\-verbose ]
+.SH DESCRIPTION
+.B vulnews
+is a tool designed to provide early warning of software supply chain compromises.
+It monitors a set of RSS/Atom feeds from security research blogs and platforms,
+analyzes the articles using a Large Language Model (LLM) to detect confirmed
+compromises, and then checks the openSUSE Build Service (OBS) for potentially
+affected packages.
+.PP
+The tool can run either as a daemon, polling feeds at regular intervals, or
+in a "one-shot" mode. When a compromise is detected and found to impact
+packages in OBS, it reports the findings to standard output, including details
+about affected versions and risk assessment.
+.SH OPTIONS
+.TP
+.BR \-c ", " \-\-config " " \fICONFIG\fR
+Path to the YAML configuration file. This is a required argument.
+.TP
+.BR \-\-one\-shot
+Poll all configured sources once and then exit. The default behavior is to run
+as a daemon.
+.TP
+.BR \-\-source " " \fINAME\fR
+Poll only the specified named source. This is useful for testing individual
+feed configurations.
+.TP
+.BR \-\-dry\-run
+Fetch articles from the feeds but skip the LLM analysis and OBS impact
+assessment stages.
+.TP
+.BR \-v ", " \-\-verbose
+Enable debug-level logging to standard error.
+.SH CONFIGURATION
+The configuration file is written in YAML. Key sections include:
+.TP
+.B poll_interval
+Integer. Time in seconds between polling cycles in daemon mode. Default is 300.
+.TP
+.B llm_type
+String. Either "local" or "external".
+.TP
+.B state_dir
+String. Path to a directory where persistent state (ETags, compromise database,
+and models) is stored. Default is "./state".
+.TP
+.B sources
+A list of feed sources, each with a
+.BR name ,
+.BR type " (must be 'rss'), and"
+.B url .
+.SH FILES
+.TP
+.I state/feed_state.json
+Stores caching information (ETags, Last-Modified) for the monitored feeds.
+.TP
+.I state/compromises.json
+A simple database used to deduplicate reports of the same compromise.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Initialization error (e.g., missing config file, invalid configuration).
+.SH EXAMPLES
+Run as a daemon with a specific configuration:
+.IP
+vulnews \-c /etc/vulnews/config.yaml
+.PP
+Perform a single check of all feeds and exit:
+.IP
+vulnews \-c config.yaml \-\-one\-shot
+.SH BUGS
+No bug tracking system is currently specified.
+.SH AUTHOR
+Vojtěch Pavlík <vojtech@suse.com>
+.SH SEE ALSO
+.BR osc (1)
