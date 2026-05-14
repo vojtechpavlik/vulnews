@@ -1,0 +1,5 @@
+nodejs-evil-package.spec
+nodejs-evil-package.changes
+nodejs-evil-package-1.0.4.tar.gz
+index.js
+postinstall.sh

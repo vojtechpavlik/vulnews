@@ -31,9 +31,19 @@ def _extract_json(text: str) -> dict | None:
 
     # Try direct parse first
     try:
-        return json.loads(text)
+        parsed = json.loads(text)
     except json.JSONDecodeError:
-        pass
+        parsed = None
+
+    # Unwrap gemini -o json envelope: {"response": "<json string>"}
+    if isinstance(parsed, dict) and "response" in parsed and isinstance(parsed["response"], str):
+        try:
+            return json.loads(parsed["response"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    if isinstance(parsed, dict):
+        return parsed
 
     # Strip markdown fences
     fenced = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
@@ -42,14 +52,6 @@ def _extract_json(text: str) -> dict | None:
             return json.loads(fenced.group(1).strip())
         except json.JSONDecodeError:
             pass
-
-    # Try gemini -o json envelope: {"response": "<json string>"}
-    try:
-        outer = json.loads(text)
-        if isinstance(outer, dict) and "response" in outer:
-            return json.loads(outer["response"])
-    except (json.JSONDecodeError, TypeError):
-        pass
 
     return None
 

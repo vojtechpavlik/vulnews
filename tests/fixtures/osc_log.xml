@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<log>
+  <logentry revision="3">
+    <author>maintainer</author>
+    <date>2025-01-10 12:00:00</date>
+    <msg>Update to version 1.0.4</msg>
+  </logentry>
+  <logentry revision="2">
+    <author>maintainer</author>
+    <date>2024-12-01 10:00:00</date>
+    <msg>Update to version 1.0.3</msg>
+  </logentry>
+  <logentry revision="1">
+    <author>bot</author>
+    <date>2025-02-01 08:00:00</date>
+    <msg>Initial commit</msg>
+  </logentry>
+</log>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Test Atom Feed</title>
+  <link href="https://example.com"/>
+  <entry>
+    <title>Malware found in popular npm package</title>
+    <link href="https://example.com/atom/1"/>
+    <id>urn:uuid:12345678-1234-1234-1234-123456789012</id>
+    <updated>2025-01-13T12:00:00Z</updated>
+    <content type="html"><![CDATA[<p>Malware was discovered in a popular package.</p>]]></content>
+  </entry>
+</feed>

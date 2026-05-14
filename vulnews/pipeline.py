@@ -200,6 +200,14 @@ def _assess_impact(obs_pkg: OBSPackage, result: LLMResult) -> ImpactResult:
     )
 
 
+def _parse_date_naive(s: str) -> datetime | None:
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return dt.replace(tzinfo=None)
+
+
 def _date_in_window(
     date_str: str,
     window_start: str | None,
@@ -207,25 +215,18 @@ def _date_in_window(
 ) -> bool:
     if not date_str:
         return False
-    try:
-        dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-    except ValueError:
+    dt = _parse_date_naive(date_str)
+    if dt is None:
         return False
 
     if window_start:
-        try:
-            start = datetime.fromisoformat(window_start.replace("Z", "+00:00"))
-            if dt < start:
-                return False
-        except ValueError:
-            pass
+        start = _parse_date_naive(window_start)
+        if start and dt < start:
+            return False
 
     if window_end:
-        try:
-            end = datetime.fromisoformat(window_end.replace("Z", "+00:00"))
-            if dt > end:
-                return False
-        except ValueError:
-            pass
+        end = _parse_date_naive(window_end)
+        if end and dt > end:
+            return False
 
     return True
