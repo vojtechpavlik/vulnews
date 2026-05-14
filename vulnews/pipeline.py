@@ -86,7 +86,7 @@ class Pipeline:
             log.info("[dry-run] Skipping LLM/OBS for: %s", article.url)
             return
 
-        result = analyze_article(article, self.config.llm_command)
+        result = analyze_article(article, self.config.llm_command, self.config.llm_env)
         if result is None:
             log.warning("LLM analysis failed for: %s", article.title)
             return
@@ -96,6 +96,11 @@ class Pipeline:
                 "Not a compromise (confidence=%.2f): %s",
                 result.confidence, article.title,
             )
+            return
+
+        if not result.package_name:
+            log.warning("LLM detected compromise but package_name is missing or invalid: %s",
+                        article.title)
             return
 
         comp_id = self.compromise_db.make_id(

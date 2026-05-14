@@ -44,6 +44,17 @@ def strip_html(html: str) -> str:
     return s.get_text()
 
 
+def scrub_text(text: str, max_len: int = 32768) -> str:
+    # Allow ASCII 32-126, exclude []{}\|&^#!;
+    excluded = set("[]{}\\|&^#!;")
+    result = []
+    for char in text:
+        cp = ord(char)
+        if 32 <= cp <= 126 and char not in excluded:
+            result.append(char)
+    return "".join(result)[:max_len]
+
+
 class Source(ABC):
     @abstractmethod
     def poll(self, state: FeedState) -> tuple[list[Article], FeedState]:
@@ -89,6 +100,11 @@ class RSSSource(Source):
         )
 
         feed = feedparser.parse(resp.text)
+        if getattr(feed, "bozo", 0):
+            log.warning("Malformed RSS feed from %s: %s", self.config.name,
+                        getattr(feed, "bozo_exception", "unknown error"))
+            return [], state
+
         articles = []
 
         for entry in feed.entries:
@@ -100,7 +116,7 @@ class RSSSource(Source):
             if not content_html:
                 content_html = getattr(entry, "title", "")
 
-            content_text = strip_html(content_html)
+            content_text = scrub_text(strip_html(content_html))
 
             published = None
             if hasattr(entry, "published_parsed") and entry.published_parsed:
@@ -112,15 +128,15 @@ class RSSSource(Source):
                 published = getattr(entry, "published", None)
 
             raw_id = getattr(entry, "id", "") or getattr(entry, "link", "")
-            link = getattr(entry, "link", "") or raw_id
-            title = getattr(entry, "title", "(no title)")
+            link = scrub_text(getattr(entry, "link", "") or raw_id)
+            title = scrub_text(getattr(entry, "title", "(no title)"))
 
             articles.append(Article(
                 source_name=self.config.name,
                 title=title,
                 url=link,
                 content=content_text,
-                published=published,
+                published=scrub_text(published) if published else None,
                 raw_id=raw_id,
             ))
 

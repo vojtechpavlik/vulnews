@@ -85,7 +85,7 @@ def test_analyze_article_positive(monkeypatch):
     mock_proc = MagicMock(returncode=0, stdout=response, stderr="")
     monkeypatch.setattr(subprocess, "run", lambda *a, **kw: mock_proc)
 
-    result = analyze_article(_make_article(), "echo")
+    result = analyze_article(_make_article(), ["echo"])
     assert result is not None
     assert result.is_compromise is True
     assert result.package_name == "evil"
@@ -98,7 +98,7 @@ def test_analyze_article_negative(monkeypatch):
     mock_proc = MagicMock(returncode=0, stdout=response, stderr="")
     monkeypatch.setattr(subprocess, "run", lambda *a, **kw: mock_proc)
 
-    result = analyze_article(_make_article(), "echo")
+    result = analyze_article(_make_article(), ["echo"])
     assert result is not None
     assert result.is_compromise is False
 
@@ -107,7 +107,7 @@ def test_analyze_article_nonzero_exit(monkeypatch):
     mock_proc = MagicMock(returncode=1, stdout="", stderr="error")
     monkeypatch.setattr(subprocess, "run", lambda *a, **kw: mock_proc)
 
-    result = analyze_article(_make_article(), "echo")
+    result = analyze_article(_make_article(), ["echo"])
     assert result is None
 
 
@@ -116,7 +116,7 @@ def test_analyze_article_timeout(monkeypatch):
         raise subprocess.TimeoutExpired("cmd", 120)
     monkeypatch.setattr(subprocess, "run", raise_timeout)
 
-    result = analyze_article(_make_article(), "echo")
+    result = analyze_article(_make_article(), ["echo"])
     assert result is None
 
 
@@ -125,7 +125,7 @@ def test_analyze_article_oserror(monkeypatch):
         raise OSError("command not found")
     monkeypatch.setattr(subprocess, "run", raise_oserror)
 
-    result = analyze_article(_make_article(), "echo")
+    result = analyze_article(_make_article(), ["echo"])
     assert result is None
 
 
@@ -133,7 +133,7 @@ def test_analyze_article_bad_json(monkeypatch):
     mock_proc = MagicMock(returncode=0, stdout="not json", stderr="")
     monkeypatch.setattr(subprocess, "run", lambda *a, **kw: mock_proc)
 
-    result = analyze_article(_make_article(), "echo")
+    result = analyze_article(_make_article(), ["echo"])
     assert result is None
 
 
@@ -148,7 +148,7 @@ def test_analyze_article_stdin_content(monkeypatch):
 
     monkeypatch.setattr(subprocess, "run", capture_run)
     article = _make_article(title="My Title", content="My Content")
-    analyze_article(article, "echo")
+    analyze_article(article, ["echo"])
 
     text = captured_input["text"]
     assert "Title: My Title" in text
@@ -161,9 +161,52 @@ def test_analyze_article_with_dummy_script():
         title="Supply chain compromise detected",
         content="A compromise was found in the package.",
     )
-    result = analyze_article(article, f"{sys.executable} {DUMMY_LLM}")
+    result = analyze_article(article, [sys.executable, DUMMY_LLM])
     assert result is not None
     assert result.is_compromise is True
     assert result.confidence == 0.95
     assert result.package_name == "evil-package"
     assert result.package_ecosystem == "npm"
+
+
+def test_analyze_article_validation(monkeypatch):
+    response = json.dumps({
+        "is_compromise": True,
+        "confidence": "high",  # invalid type, should be float
+        "package_name": "evil; package",  # invalid char ;
+        "package_ecosystem": "npm",
+        "affected_versions": "1.0 [bad]",  # invalid char [
+        "compromised_timeframe": {"start": "2025-01-01", "end": "2025-01-15"},
+        "malicious_files": ["bad.js", "sneaky;file"],
+        "malicious_behavior": "steals creds []",
+        "summary": "Bad package {}",
+    })
+    mock_proc = MagicMock(returncode=0, stdout=response, stderr="")
+    monkeypatch.setattr(subprocess, "run", lambda *a, **kw: mock_proc)
+
+    result = analyze_article(_make_article(), ["echo"])
+    assert result is not None
+    assert result.confidence == 0.0
+    assert result.package_name is None
+    assert result.affected_versions is None
+    assert result.malicious_files == ["bad.js"]
+    # Malicious behavior and summary should be scrubbed
+    assert "[]" not in result.malicious_behavior
+    assert "{}" not in result.summary
+    # raw_response should be scrubbed
+    assert "[]" not in result.raw_response
+
+
+def test_analyze_article_env(monkeypatch):
+    captured_env = {}
+
+    def capture_run(*a, **kw):
+        captured_env["env"] = kw.get("env", {})
+        return MagicMock(returncode=0,
+                         stdout='{"is_compromise": false, "compromised_timeframe": {}}',
+                         stderr="")
+
+    monkeypatch.setattr(subprocess, "run", capture_run)
+    analyze_article(_make_article(), ["echo"], llm_env={"MY_VAR": "MY_VAL"})
+
+    assert captured_env["env"].get("MY_VAR") == "MY_VAL"

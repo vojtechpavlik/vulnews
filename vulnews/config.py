@@ -18,7 +18,8 @@ class SourceConfig:
 @dataclass
 class Config:
     poll_interval: int = 300
-    llm_command: str = ""
+    llm_command: list[str] = field(default_factory=list)
+    llm_env: dict[str, str] = field(default_factory=dict)
     state_dir: str = "./state"
     max_articles_per_source: int = 10
     confidence_threshold: float = 0.5
@@ -64,10 +65,25 @@ def load_config(path: str) -> Config:
         print(f"Error: duplicate source names: {set(dupes)}", file=sys.stderr)
         sys.exit(1)
 
-    llm_command = raw.get("llm_command", "")
-    if not llm_command:
+    llm_command_raw = raw.get("llm_command", "")
+    if not llm_command_raw:
         print("Error: llm_command is required", file=sys.stderr)
         sys.exit(1)
+
+    if isinstance(llm_command_raw, str):
+        import shlex
+        llm_command = shlex.split(llm_command_raw)
+    elif isinstance(llm_command_raw, list):
+        llm_command = [str(x) for x in llm_command_raw]
+    else:
+        print("Error: llm_command must be a string or a list of strings", file=sys.stderr)
+        sys.exit(1)
+
+    llm_env = raw.get("llm_env", {})
+    if not isinstance(llm_env, dict):
+        print("Error: llm_env must be a mapping", file=sys.stderr)
+        sys.exit(1)
+    llm_env = {str(k): str(v) for k, v in llm_env.items()}
 
     poll_interval = raw.get("poll_interval", 300)
     if not isinstance(poll_interval, int) or poll_interval < 1:
@@ -77,6 +93,7 @@ def load_config(path: str) -> Config:
     return Config(
         poll_interval=poll_interval,
         llm_command=llm_command,
+        llm_env=llm_env,
         state_dir=raw.get("state_dir", "./state"),
         max_articles_per_source=raw.get("max_articles_per_source", 10),
         confidence_threshold=raw.get("confidence_threshold", 0.5),

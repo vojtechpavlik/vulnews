@@ -184,7 +184,7 @@ def test_run_once_dry_run(tmp_path, monkeypatch):
 
     called = []
     monkeypatch.setattr("vulnews.pipeline.analyze_article",
-                        lambda *a: called.append(1) or None)
+                        lambda *a, **kw: called.append(1) or None)
 
     pipeline.run_once(dry_run=True)
     assert called == []
@@ -220,7 +220,7 @@ def test_run_once_caps_articles(tmp_path, monkeypatch):
 
     processed = []
     monkeypatch.setattr("vulnews.pipeline.analyze_article",
-                        lambda a, cmd: processed.append(a.title) or None)
+                        lambda a, cmd, env: processed.append(a.title) or None)
 
     pipeline.run_once()
     assert len(processed) == 2
@@ -231,7 +231,7 @@ def test_process_article_new_compromise(tmp_path, monkeypatch):
     pipeline = Pipeline(cfg)
 
     llm_result = _make_llm_result()
-    monkeypatch.setattr("vulnews.pipeline.analyze_article", lambda a, cmd: llm_result)
+    monkeypatch.setattr("vulnews.pipeline.analyze_article", lambda a, cmd, env: llm_result)
     monkeypatch.setattr("vulnews.pipeline.search_package",
                         lambda name: [OBSPackage("Factory", "pkg")])
     monkeypatch.setattr("vulnews.pipeline._assess_impact",
@@ -258,10 +258,26 @@ def test_process_article_already_known(tmp_path, monkeypatch):
     pipeline = Pipeline(cfg)
 
     llm_result = _make_llm_result()
-    monkeypatch.setattr("vulnews.pipeline.analyze_article", lambda a, cmd: llm_result)
+    monkeypatch.setattr("vulnews.pipeline.analyze_article", lambda a, cmd, env: llm_result)
 
     cid = pipeline.compromise_db.make_id("evil-package", "npm", ">=1.0.0,<1.0.5")
     pipeline.compromise_db.add(cid, {"package_name": "evil-package"})
+
+    reported = []
+    monkeypatch.setattr("vulnews.pipeline.report_findings",
+                        lambda r, impacts: reported.append(True))
+
+    pipeline._process_article(_make_article(title="compromise"), dry_run=False)
+    assert reported == []
+
+
+def test_process_article_missing_package_name(tmp_path, monkeypatch):
+    cfg = _make_config(tmp_path)
+    pipeline = Pipeline(cfg)
+
+    # LLM says compromise, but package_name is invalid/missing
+    llm_result = _make_llm_result(package_name=None)
+    monkeypatch.setattr("vulnews.pipeline.analyze_article", lambda a, cmd, env: llm_result)
 
     reported = []
     monkeypatch.setattr("vulnews.pipeline.report_findings",
