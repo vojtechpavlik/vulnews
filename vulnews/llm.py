@@ -2,14 +2,41 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import subprocess
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, List, Optional
 
-from vulnews.sources import Article
+from pydantic import BaseModel, Field
+
+from vulnews.sources import Article, scrub_text
 
 log = logging.getLogger("vulnews")
 
+SYSTEM_PROMPT = """You are a supply chain security analyst. Read the article provided.
+Determine if it describes a NEW supply chain compromise -- meaning an actual compromise of a package in a software repository (npm, PyPI, RubyGems, Cargo, Maven, NuGet, Go modules, OBS, etc.), a build system, or a distribution channel.
+
+This is NOT about general CVE vulnerabilities, security advisories about bugs, or theoretical attack vectors. Only flag articles about CONFIRMED compromises where malicious code was actually inserted into a package or build artifact.
+
+If the article does NOT describe a supply chain compromise, set is_compromise to false and summary to "Not a supply chain compromise."
+"""
+
+class Timeframe(BaseModel):
+    start: Optional[str] = Field(None, description="ISO-8601 start date of the compromise")
+    end: Optional[str] = Field(None, description="ISO-8601 end date of the compromise")
+
+class CompromiseAnalysis(BaseModel):
+    is_compromise: bool = Field(..., description="Whether the article describes a confirmed supply chain compromise")
+    confidence: float = Field(..., description="Confidence score between 0 and 1", ge=0.0, le=1.0)
+    package_name: Optional[str] = Field(None, description="Name of the affected package")
+    package_ecosystem: Optional[str] = Field(None, description="Ecosystem (e.g., pypi, npm, rubygems)")
+    affected_versions: Optional[str] = Field(None, description="Affected version range (e.g., >=1.2.0)")
+    compromised_timeframe: Timeframe = Field(default_factory=Timeframe)
+    malicious_files: List[str] = Field(default_factory=list, description="List of malicious files identified")
+    malicious_behavior: Optional[str] = Field(None, description="Brief description of the malicious payload")
+    summary: str = Field(..., description="One-paragraph summary of the findings")
 
 @dataclass
 class LLMResult:
@@ -25,17 +52,48 @@ class LLMResult:
     summary: str = ""
     raw_response: str = ""
 
+_llama_instance = None
+
+def get_llama(config: Any):
+    global _llama_instance
+    if _llama_instance is not None:
+        return _llama_instance
+
+    from huggingface_hub import hf_hub_download
+    from llama_cpp import Llama
+
+    model_path = config.llm_local_model_path
+    if not model_path:
+        # Try to download if repo/file specified
+        if config.llm_local_model_repo and config.llm_local_model_file:
+            log.info("Downloading model %s/%s", config.llm_local_model_repo, config.llm_local_model_file)
+            cache_dir = Path(config.state_dir) / "models"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            model_path = hf_hub_download(
+                repo_id=config.llm_local_model_repo,
+                filename=config.llm_local_model_file,
+                cache_dir=str(cache_dir)
+            )
+        else:
+            raise ValueError("No local model path or HuggingFace repo/file specified")
+
+    log.info("Loading model from %s", model_path)
+    _llama_instance = Llama(
+        model_path=str(model_path),
+        n_ctx=config.llm_local_n_ctx,
+        n_threads=config.llm_local_n_threads,
+        n_gpu_layers=config.llm_local_n_gpu_layers,
+        verbose=False,
+    )
+    return _llama_instance
 
 def _extract_json(text: str) -> dict | None:
     text = text.strip()
-
-    # Try direct parse first
     try:
         parsed = json.loads(text)
     except json.JSONDecodeError:
         parsed = None
 
-    # Unwrap gemini -o json envelope: {"response": "<json string>"}
     if isinstance(parsed, dict) and "response" in parsed and isinstance(parsed["response"], str):
         try:
             return json.loads(parsed["response"])
@@ -45,16 +103,13 @@ def _extract_json(text: str) -> dict | None:
     if isinstance(parsed, dict):
         return parsed
 
-    # Strip markdown fences
     fenced = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
     if fenced:
         try:
             return json.loads(fenced.group(1).strip())
         except json.JSONDecodeError:
             pass
-
     return None
-
 
 def _validate_field(val: str | None, pattern: str) -> str | None:
     if val is None:
@@ -63,11 +118,9 @@ def _validate_field(val: str | None, pattern: str) -> str | None:
         return None
     return val
 
-
 def analyze_article(
     article: Article,
-    llm_command: list[str],
-    llm_env: dict[str, str] | None = None,
+    config: Any,
 ) -> LLMResult | None:
     input_text = (
         f"Title: {article.title}\n"
@@ -77,14 +130,22 @@ def analyze_article(
         f"{article.content}"
     )
 
-    import os
+    if config.llm_type == "external":
+        return _analyze_external(article, input_text, config)
+    elif config.llm_type == "local":
+        return _analyze_local(article, input_text, config)
+    else:
+        log.error("Unknown llm_type: %s", config.llm_type)
+        return None
+
+def _analyze_external(article: Article, input_text: str, config: Any) -> LLMResult | None:
     env = os.environ.copy()
-    if llm_env:
-        env.update(llm_env)
+    if config.llm_env:
+        env.update(config.llm_env)
 
     try:
         proc = subprocess.run(
-            llm_command,
+            config.llm_command,
             shell=False,
             input=input_text,
             capture_output=True,
@@ -112,9 +173,57 @@ def analyze_article(
         log.warning("Failed to parse LLM JSON for %s: %.200s", article.title, raw)
         return None
 
+    return _map_to_result(parsed, raw)
+
+def _analyze_local(article: Article, input_text: str, config: Any) -> LLMResult | None:
+    try:
+        llm = get_llama(config)
+    except Exception as e:
+        log.error("Failed to initialize local LLM: %s", e)
+        return None
+
+    if config.llm_local_chat_template == "nemo":
+        # Mistral Nemo chat template: <s>[INST] system_prompt\n\nuser_prompt [/INST]
+        prompt = f"<s>[INST] {SYSTEM_PROMPT}\n\n{input_text} [/INST]"
+    else:
+        # Generic
+        prompt = f"System: {SYSTEM_PROMPT}\nUser: {input_text}\nAssistant:"
+
+    try:
+        if config.llm_local_chat_template == "nemo":
+            # Use raw completion for custom template
+            response_raw = llm.create_completion(
+                prompt=prompt,
+                response_format={
+                    "type": "json_object",
+                    "schema": CompromiseAnalysis.model_json_schema(),
+                },
+                temperature=0.0,
+            )
+            raw = response_raw["choices"][0]["text"]
+        else:
+            response = llm.create_chat_completion(
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": input_text}
+                ],
+                response_format={
+                    "type": "json_object",
+                    "schema": CompromiseAnalysis.model_json_schema(),
+                },
+                temperature=0.0,
+            )
+            raw = response["choices"][0]["message"]["content"]
+        parsed = json.loads(raw)
+    except Exception as e:
+        log.error("Local LLM inference failed for %s: %s", article.title, e)
+        return None
+
+    return _map_to_result(parsed, raw)
+
+def _map_to_result(parsed: dict, raw: str) -> LLMResult:
     timeframe = parsed.get("compromised_timeframe") or {}
 
-    # Strict validation of LLM output
     pkg_name = _validate_field(parsed.get("package_name"), r"^[a-zA-Z0-9._/@-]+$")
     pkg_eco = _validate_field(parsed.get("package_ecosystem"), r"^[a-z0-9-]+$")
     aff_ver = _validate_field(parsed.get("affected_versions"), r"^[a-zA-Z0-9.+-<>=|*, ]+$")
@@ -132,8 +241,6 @@ def analyze_article(
     except (ValueError, TypeError):
         pass
     confidence = max(0.0, min(1.0, confidence))
-
-    from vulnews.sources import scrub_text
 
     return LLMResult(
         is_compromise=bool(parsed.get("is_compromise", False)),

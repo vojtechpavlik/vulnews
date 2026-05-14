@@ -11,39 +11,28 @@ max_articles_per_source: 10
 # Minimum confidence threshold for LLM compromise detection (0.0 - 1.0).
 confidence_threshold: 0.5
 
-# Directory for persistent state (ETag cache, compromise database).
+# Directory for persistent state (ETag cache, compromise database, models).
 state_dir: ./state
 
-# LLM command. Article text is piped via stdin.
-# Must produce JSON on stdout matching the expected schema.
-llm_command: >-
-  gemini -p "You are a supply chain security analyst. Read the article
-  provided on stdin. Determine if it describes a NEW supply chain compromise
-  -- meaning an actual compromise of a package in a software repository (npm,
-  PyPI, RubyGems, Cargo, Maven, NuGet, Go modules, OBS, etc.), a build
-  system, or a distribution channel.
+# LLM Configuration
+# Type can be 'local' (internal llama-cpp-python) or 'external' (llm_command).
+llm_type: local
 
-  This is NOT about general CVE vulnerabilities, security advisories about
-  bugs, or theoretical attack vectors. Only flag articles about CONFIRMED
-  compromises where malicious code was actually inserted into a package or
-  build artifact.
+# Local LLM settings (used when llm_type: local)
+llm_local_model_repo: bartowski/Mistral-Nemo-12B-v1-GGUF
+llm_local_model_file: Mistral-Nemo-12B-v1-Q4_K_M.gguf
+# Or specify a direct path:
+# llm_local_model_path: /path/to/model.gguf
+llm_local_n_ctx: 2048
+llm_local_n_threads: 4
+llm_local_n_gpu_layers: 0
+llm_local_chat_template: nemo
 
-  Respond with ONLY valid JSON (no markdown fences, no commentary). Schema:
-  {\"is_compromise\": bool, \"confidence\": float 0-1,
-  \"package_name\": string or null,
-  \"package_ecosystem\": string or null (e.g. npm/pypi/rubygems/maven/cargo),
-  \"affected_versions\": string or null (e.g. \">=2.1.0,<2.1.5\"),
-  \"compromised_timeframe\": {\"start\": ISO-8601 or null, \"end\": ISO-8601 or null},
-  \"malicious_files\": [string] (filenames with malicious code, empty if unknown),
-  \"malicious_behavior\": string or null (brief description of the payload),
-  \"summary\": string (one-paragraph summary)}.
-
-  If the article does NOT describe a supply chain compromise, respond:
-  {\"is_compromise\": false, \"confidence\": 0.0, \"package_name\": null,
-  \"package_ecosystem\": null, \"affected_versions\": null,
-  \"compromised_timeframe\": {\"start\": null, \"end\": null},
-  \"malicious_files\": [], \"malicious_behavior\": null,
-  \"summary\": \"Not a supply chain compromise.\"}" --skip-trust
+# External LLM settings (used when llm_type: external)
+# llm_command: >-
+#   gemini -p "You are a supply chain security analyst. Read the article
+#   provided on stdin. Determine if it describes a NEW supply chain compromise...
+#   (see config.example.yaml for full Gemini example)" --skip-trust
 
 # Feed sources.
 # Types: rss (RSS/Atom polling), github_advisory (stub, not yet implemented).
@@ -124,9 +113,3 @@ sources:
     type: rss
     url: https://sansec.io/feed
     tier: 3
-
-  # --- Future: Push notification sources ---
-  # - name: github-advisory
-  #   type: github_advisory
-  #   url: https://api.github.com/advisories
-  #   tier: 1
