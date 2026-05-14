@@ -75,9 +75,10 @@ def test_obs_package_names_deduplication():
 
 # --- search_package tests ---
 
+mock_config = MagicMock(obs_priority_projects=[], obs_max_packages=10)
 
 def test_search_package_found(mock_osc):
-    results = search_package("evil-package")
+    results = search_package("evil-package", mock_config)
     assert len(results) >= 1
     assert all(isinstance(r, OBSPackage) for r in results)
     projects = [r.project for r in results]
@@ -85,12 +86,12 @@ def test_search_package_found(mock_osc):
 
 
 def test_search_package_not_found(mock_osc):
-    results = search_package("notfound")
+    results = search_package("notfound", mock_config)
     assert results == []
 
 
 def test_search_package_skips_discontinued(mock_osc):
-    results = search_package("evil-package")
+    results = search_package("evil-package", mock_config)
     for r in results:
         assert not r.project.startswith("DISCONTINUED:")
 
@@ -99,20 +100,20 @@ def test_search_package_timeout(monkeypatch):
     def raise_timeout(*a, **kw):
         raise subprocess.TimeoutExpired("osc", 60)
     monkeypatch.setattr("vulnews.obs._run_osc", raise_timeout)
-    assert search_package("pkg") == []
+    assert search_package("pkg", mock_config) == []
 
 
 def test_search_package_oserror(monkeypatch):
     def raise_oserror(*a, **kw):
         raise OSError("osc not found")
     monkeypatch.setattr("vulnews.obs._run_osc", raise_oserror)
-    assert search_package("pkg") == []
+    assert search_package("pkg", mock_config) == []
 
 
 def test_search_package_nonzero_exit(monkeypatch):
     monkeypatch.setattr("vulnews.obs._run_osc",
                         lambda *a, **kw: MagicMock(returncode=1, stdout="", stderr="err"))
-    assert search_package("pkg") == []
+    assert search_package("pkg", mock_config) == []
 
 
 # --- get_log tests ---

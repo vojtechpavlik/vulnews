@@ -30,8 +30,8 @@ class Timeframe(BaseModel):
 class CompromiseAnalysis(BaseModel):
     is_compromise: bool = Field(..., description="Whether the article describes a confirmed supply chain compromise")
     confidence: float = Field(..., description="Confidence score between 0 and 1", ge=0.0, le=1.0)
-    package_name: Optional[str] = Field(None, description="Name of the affected package")
-    package_ecosystem: Optional[str] = Field(None, description="Ecosystem (e.g., pypi, npm, rubygems)")
+    package_name: Optional[str] = Field(..., description="Name of the affected package")
+    package_ecosystem: Optional[str] = Field(..., description="Ecosystem (e.g., pypi, npm, rubygems)")
     affected_versions: Optional[str] = Field(None, description="Affected version range (e.g., >=1.2.0)")
     compromised_timeframe: Timeframe = Field(default_factory=Timeframe)
     malicious_files: List[str] = Field(default_factory=list, description="List of malicious files identified")
@@ -182,38 +182,19 @@ def _analyze_local(article: Article, input_text: str, config: Any) -> LLMResult 
         log.error("Failed to initialize local LLM: %s", e)
         return None
 
-    if config.llm_local_chat_template == "nemo":
-        # Mistral Nemo chat template: <s>[INST] system_prompt\n\nuser_prompt [/INST]
-        prompt = f"<s>[INST] {SYSTEM_PROMPT}\n\n{input_text} [/INST]"
-    else:
-        # Generic
-        prompt = f"System: {SYSTEM_PROMPT}\nUser: {input_text}\nAssistant:"
-
     try:
-        if config.llm_local_chat_template == "nemo":
-            # Use raw completion for custom template
-            response_raw = llm.create_completion(
-                prompt=prompt,
-                response_format={
-                    "type": "json_object",
-                    "schema": CompromiseAnalysis.model_json_schema(),
-                },
-                temperature=0.0,
-            )
-            raw = response_raw["choices"][0]["text"]
-        else:
-            response = llm.create_chat_completion(
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": input_text}
-                ],
-                response_format={
-                    "type": "json_object",
-                    "schema": CompromiseAnalysis.model_json_schema(),
-                },
-                temperature=0.0,
-            )
-            raw = response["choices"][0]["message"]["content"]
+        response = llm.create_chat_completion(
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": input_text}
+            ],
+            response_format={
+                "type": "json_object",
+                "schema": CompromiseAnalysis.model_json_schema(),
+            },
+            temperature=0.0,
+        )
+        raw = response["choices"][0]["message"]["content"]
         parsed = json.loads(raw)
     except Exception as e:
         log.error("Local LLM inference failed for %s: %s", article.title, e)

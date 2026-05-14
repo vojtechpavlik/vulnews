@@ -133,7 +133,7 @@ class Pipeline:
         names = obs_package_names(result.package_name or "", result.package_ecosystem)
         all_obs_pkgs: list[OBSPackage] = []
         for pkg_name in names:
-            found = search_package(pkg_name)
+            found = search_package(pkg_name, self.config)
             log.info("OBS search '%s': %d results", pkg_name, len(found))
             all_obs_pkgs.extend(found)
 

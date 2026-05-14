@@ -56,7 +56,32 @@ def obs_package_names(package_name: str, ecosystem: str | None) -> list[str]:
     return result
 
 
-def search_package(package_name: str) -> list[OBSPackage]:
+import re
+from typing import Any
+
+log = logging.getLogger("vulnews")
+
+
+@dataclass
+class OBSPackage:
+    project: str
+    package: str
+
+
+@dataclass
+class OBSLogEntry:
+    revision: str
+    author: str
+    date: str
+    message: str
+
+
+def _run_osc(*args: str, timeout: int = 60) -> subprocess.CompletedProcess[str]:
+    cmd = ["osc", *args]
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+
+
+def search_package(package_name: str, config: Any) -> list[OBSPackage]:
     try:
         proc = _run_osc("search", "--package", "-e", package_name, "--csv")
     except subprocess.TimeoutExpired:
@@ -84,7 +109,15 @@ def search_package(package_name: str) -> list[OBSPackage]:
             continue
         results.append(OBSPackage(project=project, package=pkg))
 
-    return results
+    # Apply priority sorting and limiting
+    def is_priority(p: OBSPackage) -> int:
+        for pattern in config.obs_priority_projects:
+            if re.search(pattern, p.project):
+                return 0
+        return 1
+
+    results.sort(key=is_priority)
+    return results[:config.obs_max_packages]
 
 
 def get_version(project: str, package: str) -> str | None:

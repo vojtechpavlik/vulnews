@@ -17,6 +17,7 @@ DUMMY_LLM = str(TESTS_DIR / "dummy_llm.py")
 def _make_config(tmp_path):
     return Config(
         poll_interval=60,
+        llm_type="external",
         llm_command=[sys.executable, DUMMY_LLM],
         state_dir=str(tmp_path / "state"),
         max_articles_per_source=5,

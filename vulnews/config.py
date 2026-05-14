@@ -31,6 +31,14 @@ class Config:
     state_dir: str = "./state"
     max_articles_per_source: int = 10
     confidence_threshold: float = 0.5
+    obs_priority_projects: list[str] = field(default_factory=lambda: [
+        "^openSUSE:Factory$",
+        "^openSUSE:Leap:",
+        "^SUSE:SLE-",
+        "^openSUSE:Slowroll$",
+        "^openSUSE:Backports:",
+    ])
+    obs_max_packages: int = 10
     sources: list[SourceConfig] = field(default_factory=list)
 
 
@@ -120,5 +128,13 @@ def load_config(path: str) -> Config:
         state_dir=raw.get("state_dir", "./state"),
         max_articles_per_source=raw.get("max_articles_per_source", 10),
         confidence_threshold=raw.get("confidence_threshold", 0.5),
+        obs_priority_projects=raw.get("obs_priority_projects", [
+            "^openSUSE:Factory$",
+            "^openSUSE:Leap:",
+            "^SUSE:SLE-",
+            "^openSUSE:Slowroll$",
+            "^openSUSE:Backports:",
+        ]),
+        obs_max_packages=raw.get("obs_max_packages", 10),
         sources=sources,
     )

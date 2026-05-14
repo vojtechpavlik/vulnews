@@ -226,7 +226,7 @@ def test_run_once_caps_articles(tmp_path, monkeypatch):
 
     processed = []
     monkeypatch.setattr("vulnews.pipeline.analyze_article",
-                        lambda a, cmd, env: processed.append(a.title) or None)
+                        lambda a, cfg: processed.append(a.title) or None)
 
     pipeline.run_once()
     assert len(processed) == 2
@@ -237,9 +237,9 @@ def test_process_article_new_compromise(tmp_path, monkeypatch):
     pipeline = Pipeline(cfg)
 
     llm_result = _make_llm_result()
-    monkeypatch.setattr("vulnews.pipeline.analyze_article", lambda a, cmd, env: llm_result)
+    monkeypatch.setattr("vulnews.pipeline.analyze_article", lambda a, cfg: llm_result)
     monkeypatch.setattr("vulnews.pipeline.search_package",
-                        lambda name: [OBSPackage("Factory", "pkg")])
+                        lambda name, cfg: [OBSPackage("Factory", "pkg")])
     monkeypatch.setattr("vulnews.pipeline._assess_impact",
                         lambda obs_pkg, result: ImpactResult(
                             project="Factory", package="pkg",
@@ -265,7 +265,7 @@ def test_process_article_already_known(tmp_path, monkeypatch):
     pipeline = Pipeline(cfg)
 
     llm_result = _make_llm_result()
-    monkeypatch.setattr("vulnews.pipeline.analyze_article", lambda a, cmd, env: llm_result)
+    monkeypatch.setattr("vulnews.pipeline.analyze_article", lambda a, cfg: llm_result)
 
     cid = pipeline.compromise_db.make_id("evil-package", "npm", ">=1.0.0,<1.0.5")
     pipeline.compromise_db.add(cid, {"package_name": "evil-package"})
@@ -284,7 +284,7 @@ def test_process_article_missing_package_name(tmp_path, monkeypatch):
 
     # LLM says compromise, but package_name is invalid/missing
     llm_result = _make_llm_result(package_name=None)
-    monkeypatch.setattr("vulnews.pipeline.analyze_article", lambda a, cmd, env: llm_result)
+    monkeypatch.setattr("vulnews.pipeline.analyze_article", lambda a, cfg: llm_result)
 
     reported = []
     monkeypatch.setattr("vulnews.pipeline.report_findings",
