@@ -179,3 +179,25 @@ def test_get_changelog_no_changes_file(monkeypatch):
 def test_get_version(mock_osc):
     version = get_version("openSUSE:Factory", "nodejs-evil-package")
     assert version == "1.0.4"
+
+
+def test_search_package_argument_injection(monkeypatch):
+    captured_args = []
+
+    def fake_run_osc(*args, timeout=60):
+        captured_args.append(args)
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.stdout = "project|package\n"
+        mock_proc.stderr = ""
+        return mock_proc
+
+    monkeypatch.setattr("vulnews.obs._run_osc", fake_run_osc)
+    mock_config = MagicMock(obs_priority_projects=[], obs_max_packages=10)
+    
+    malicious_name = "-v"
+    search_package(malicious_name, mock_config)
+    
+    last_args = captured_args[0]
+    # Verify that the command is hardened with '--'
+    assert last_args == ("search", "--package", "-e", "--", malicious_name, "--csv")

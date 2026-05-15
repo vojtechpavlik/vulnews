@@ -76,6 +76,8 @@ def main():
         for i, a in enumerate(args):
             if a == "-e" and i + 1 < len(args):
                 name = args[i + 1]
+                if name == "--" and i + 2 < len(args):
+                    name = args[i + 2]
                 break
         if name == "notfound":
             pass  # empty output

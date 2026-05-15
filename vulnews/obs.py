@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import logging
+import re
 import subprocess
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
+from typing import Any
 
 log = logging.getLogger("vulnews")
 
@@ -56,34 +58,9 @@ def obs_package_names(package_name: str, ecosystem: str | None) -> list[str]:
     return result
 
 
-import re
-from typing import Any
-
-log = logging.getLogger("vulnews")
-
-
-@dataclass
-class OBSPackage:
-    project: str
-    package: str
-
-
-@dataclass
-class OBSLogEntry:
-    revision: str
-    author: str
-    date: str
-    message: str
-
-
-def _run_osc(*args: str, timeout: int = 60) -> subprocess.CompletedProcess[str]:
-    cmd = ["osc", *args]
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-
-
 def search_package(package_name: str, config: Any) -> list[OBSPackage]:
     try:
-        proc = _run_osc("search", "--package", "-e", package_name, "--csv")
+        proc = _run_osc("search", "--package", "-e", "--", package_name, "--csv")
     except subprocess.TimeoutExpired:
         log.warning("osc search timed out for %s", package_name)
         return []
@@ -132,7 +109,7 @@ def get_version(project: str, package: str) -> str | None:
         return None
 
     try:
-        proc = _run_osc("cat", project, package, spec_file)
+        proc = _run_osc("cat", "--", project, package, spec_file)
     except (subprocess.TimeoutExpired, OSError) as e:
         log.warning("osc cat failed for %s/%s: %s", project, package, e)
         return None
@@ -159,7 +136,7 @@ def get_changelog(project: str, package: str) -> str:
         return ""
 
     try:
-        proc = _run_osc("cat", project, package, changes_file)
+        proc = _run_osc("cat", "--", project, package, changes_file)
     except (subprocess.TimeoutExpired, OSError) as e:
         log.warning("osc cat failed for %s/%s: %s", project, package, e)
         return ""
@@ -172,7 +149,7 @@ def get_changelog(project: str, package: str) -> str:
 
 def get_log(project: str, package: str) -> list[OBSLogEntry]:
     try:
-        proc = _run_osc("log", "--xml", project, package)
+        proc = _run_osc("log", "--xml", "--", project, package)
     except (subprocess.TimeoutExpired, OSError) as e:
         log.warning("osc log failed for %s/%s: %s", project, package, e)
         return []
@@ -204,7 +181,7 @@ def get_log(project: str, package: str) -> list[OBSLogEntry]:
 
 def list_files(project: str, package: str) -> list[str]:
     try:
-        proc = _run_osc("ls", project, package)
+        proc = _run_osc("ls", "--", project, package)
     except (subprocess.TimeoutExpired, OSError) as e:
         log.warning("osc ls failed for %s/%s: %s", project, package, e)
         return []

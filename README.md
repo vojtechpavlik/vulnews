@@ -22,25 +22,45 @@ VulNews operates through a multi-stage pipeline:
 
 ## Installation
 
-It is recommended to install VulNews in a virtual environment:
+It is recommended to install VulNews in a virtual environment. You can use the provided `Makefile` for a quick setup:
 
 ```bash
 # Clone the repository
 git clone https://github.com/vojtechpavlik/vulnews.git
 cd vulnews
 
-# Create and activate a virtual environment
-python -m venv venv
-source venv/bin/activate
-
-# Install the package
-pip install .
+# Setup virtual environment and install dependencies
+make install
 ```
 
-For development and running tests:
+Alternatively, manual installation:
+
 ```bash
-pip install ".[test]"
+# Create and activate a virtual environment
+python -m venv .venv
+source .venv/bin/activate
+
+# Install the package with test dependencies
+pip install -e ".[test]"
+```
+
+## Testing
+
+VulNews includes a comprehensive suite of unit and integration tests.
+
+```bash
+# Run all tests via Makefile
+make test
+
+# Or run pytest directly
 pytest
+```
+
+There is also a synthetic end-to-end test that simulates a full pipeline run with a local RSS server:
+
+```bash
+# Requires a local GGUF model to be configured/downloaded
+make test-synthetic
 ```
 
 ## Configuration
