@@ -94,7 +94,7 @@ sources:
 
   - name: unit42
     type: rss
-    url: http://researchcenter.paloaltonetworks.com/unit42/feed/
+    url: https://unit42.paloaltonetworks.com/feed/
     tier: 2
 
   - name: reversinglabs

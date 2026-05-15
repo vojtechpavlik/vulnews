@@ -31,16 +31,32 @@ SOURCE_TYPES: dict[str, type[Source]] = {
     "github_advisory": GitHubAdvisorySource,
     "json": JSONSource,
 }
+from pathlib import Path
 
-
+from vulnews.config import Config
+...
 class Pipeline:
     def __init__(self, config: Config):
         self.config = config
+        self._check_state_dir()
         self.state_store = StateStore(config.state_dir)
         self.compromise_db = CompromiseDB(config.state_dir)
         self.sources = self._build_sources()
 
+    def _check_state_dir(self) -> None:
+        p = Path(self.config.state_dir)
+        if p.exists():
+            mode = p.stat().st_mode
+            # Check if group or others have write permission (mask 022)
+            if mode & 0o022:
+                log.warning(
+                    "Insecure permissions on state_dir %s: %o. "
+                    "Restrict write access to the owner only to mitigate transitive dependency risks (CVE-2025-69872).",
+                    self.config.state_dir, mode & 0o777
+                )
+
     def _build_sources(self) -> dict[str, Source]:
+
         result = {}
         for sc in self.config.sources:
             cls = SOURCE_TYPES.get(sc.type)
@@ -181,6 +197,15 @@ class Pipeline:
             time.sleep(self.config.poll_interval)
 
 
+def _normalize_specifiers(spec_str: str) -> str:
+    # 1. Remove spaces between operators and versions (e.g., ">= 1.0" -> ">=1.0")
+    # Using a lookbehind/lookahead for operators to be more precise
+    spec_str = re.sub(r'([>=<!=~]+)\s+', r'\1', spec_str)
+    # 2. Replace remaining spaces, semicolons, or multiple commas with a single comma
+    spec_str = re.sub(r'[\s,;]+', ',', spec_str)
+    return spec_str.strip(',')
+
+
 def _version_matches(version_str: str, spec_str: str) -> bool:
     try:
         v = Version(version_str)
@@ -189,20 +214,19 @@ def _version_matches(version_str: str, spec_str: str) -> bool:
 
     try:
         # SpecifierSet handles comma-separated ranges (e.g. ">=1.0.0,<1.0.5")
-        # We also replace spaces with commas to handle common LLM/human output
-        spec_str_clean = spec_str.replace(" ", ",")
+        spec_str_clean = _normalize_specifiers(spec_str)
         spec = SpecifierSet(spec_str_clean)
         # If spec is empty (no operators), it might be an exact version
         if not spec:
             try:
-                return v == Version(spec_str)
+                return v == Version(spec_str.strip())
             except InvalidVersion:
                 return False
         return v in spec
     except InvalidSpecifier:
         # Fallback for exact version without operators or other weirdness
         try:
-            return v == Version(spec_str)
+            return v == Version(spec_str.strip())
         except InvalidVersion:
             return version_str in spec_str
 

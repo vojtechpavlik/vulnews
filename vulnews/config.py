@@ -42,6 +42,9 @@ class Config:
     sources: list[SourceConfig] = field(default_factory=list)
 
 
+ALLOWED_SOURCE_TYPES = ("rss", "github_advisory", "json")
+
+
 def load_config(path: str) -> Config:
     p = Path(path)
     if not p.exists():
@@ -64,6 +67,11 @@ def load_config(path: str) -> Config:
             if key not in s:
                 print(f"Error: source #{i} missing required field '{key}'", file=sys.stderr)
                 sys.exit(1)
+        
+        if s["type"] not in ALLOWED_SOURCE_TYPES:
+            print(f"Error: source #{i} has unknown type '{s['type']}'. Allowed: {ALLOWED_SOURCE_TYPES}", file=sys.stderr)
+            sys.exit(1)
+
         sources.append(SourceConfig(
             name=s["name"],
             type=s["type"],
@@ -113,6 +121,21 @@ def load_config(path: str) -> Config:
         print("Error: poll_interval must be a positive integer", file=sys.stderr)
         sys.exit(1)
 
+    confidence_threshold = raw.get("confidence_threshold", 0.5)
+    if not isinstance(confidence_threshold, (int, float)) or not (0.0 <= confidence_threshold <= 1.0):
+        print("Error: confidence_threshold must be a number between 0.0 and 1.0", file=sys.stderr)
+        sys.exit(1)
+
+    max_articles_per_source = raw.get("max_articles_per_source", 10)
+    if not isinstance(max_articles_per_source, int) or max_articles_per_source < 1:
+        print("Error: max_articles_per_source must be a positive integer", file=sys.stderr)
+        sys.exit(1)
+
+    obs_max_packages = raw.get("obs_max_packages", 10)
+    if not isinstance(obs_max_packages, int) or obs_max_packages < 1:
+        print("Error: obs_max_packages must be a positive integer", file=sys.stderr)
+        sys.exit(1)
+
     return Config(
         poll_interval=poll_interval,
         llm_type=llm_type,
@@ -126,8 +149,8 @@ def load_config(path: str) -> Config:
         llm_local_n_gpu_layers=raw.get("llm_local_n_gpu_layers", 0),
         llm_local_chat_template=raw.get("llm_local_chat_template", "generic"),
         state_dir=raw.get("state_dir", "./state"),
-        max_articles_per_source=raw.get("max_articles_per_source", 10),
-        confidence_threshold=raw.get("confidence_threshold", 0.5),
+        max_articles_per_source=max_articles_per_source,
+        confidence_threshold=confidence_threshold,
         obs_priority_projects=raw.get("obs_priority_projects", [
             "^openSUSE:Factory$",
             "^openSUSE:Leap:",
@@ -135,6 +158,6 @@ def load_config(path: str) -> Config:
             "^openSUSE:Slowroll$",
             "^openSUSE:Backports:",
         ]),
-        obs_max_packages=raw.get("obs_max_packages", 10),
+        obs_max_packages=obs_max_packages,
         sources=sources,
     )

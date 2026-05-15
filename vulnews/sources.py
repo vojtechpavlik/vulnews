@@ -243,18 +243,32 @@ class GitHubAdvisorySource(Source):
         new_last_polled = state.last_polled
 
         # GitHub API returns a list of advisories, sorted by published_at desc
+        if not isinstance(data, list):
+            log.warning("GitHub API returned non-list data for %s", self.config.name)
+            return [], state
+
         for adv in data:
-            published_at_str = adv.get("published_at")
-            if not published_at_str:
+            if not isinstance(adv, dict):
                 continue
 
-            published_at = datetime.fromisoformat(published_at_str.replace("Z", "+00:00"))
+            published_at_str = adv.get("published_at")
+            if not published_at_str or not isinstance(published_at_str, str):
+                continue
+
+            try:
+                published_at = datetime.fromisoformat(published_at_str.replace("Z", "+00:00"))
+            except ValueError:
+                log.debug("Skipping advisory with invalid published_at: %s", published_at_str)
+                continue
 
             if last_polled_dt and published_at <= last_polled_dt:
                 break
 
-            if not new_last_polled or published_at > datetime.fromisoformat(new_last_polled.replace("Z", "+00:00")):
-                new_last_polled = published_at_str
+            try:
+                if not new_last_polled or published_at > datetime.fromisoformat(new_last_polled.replace("Z", "+00:00")):
+                    new_last_polled = published_at_str
+            except ValueError:
+                pass
 
             vulns = adv.get("vulnerabilities", [])
             vuln_info = "\n\nAffected packages:\n"

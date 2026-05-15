@@ -11,13 +11,26 @@ from vulnews.pipeline import Pipeline
 
 class RedactingFilter(logging.Filter):
     def filter(self, record):
-        if record.msg and isinstance(record.msg, str):
-            # Redact common token patterns
-            record.msg = re.sub(
+        # We redact both the raw message and the args if they are strings
+        msg = str(record.msg)
+        
+        def redact(text):
+            return re.sub(
                 r'(?i)(token|Bearer|authorization|api-key)[:\s]+[a-zA-Z0-9._-]+',
                 r'\1: [REDACTED]',
-                record.msg
+                text
             )
+
+        record.msg = redact(msg)
+        if record.args:
+            new_args = []
+            for arg in record.args:
+                if isinstance(arg, str):
+                    new_args.append(redact(arg))
+                else:
+                    new_args.append(arg)
+            record.args = tuple(new_args)
+        
         return True
 
 
@@ -57,10 +70,14 @@ def main() -> None:
         format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+    
+    # Apply redaction to all handlers
+    redaction_filter = RedactingFilter()
+    for handler in logging.root.handlers:
+        handler.addFilter(redaction_filter)
+
     if args.verbose:
-        logger = logging.getLogger("vulnews")
-        logger.setLevel(logging.DEBUG)
-        logger.addFilter(RedactingFilter())
+        logging.getLogger("vulnews").setLevel(logging.DEBUG)
 
     config = load_config(args.config)
 

@@ -162,10 +162,11 @@ def _analyze_external(article: Article, input_text: str, config: Any) -> LLMResu
         return None
 
     if proc.returncode != 0:
-        log.warning(
+        log.debug(
             "LLM exited %d for %s: %s",
             proc.returncode, article.title, proc.stderr[:200],
         )
+        log.warning("LLM command failed for %s (exit %d)", article.title, proc.returncode)
         return None
 
     raw = proc.stdout

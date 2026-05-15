@@ -54,3 +54,21 @@ def test_version_range_matching(mock_get_version, mock_get_log):
     mock_get_version.return_value = "1.2.3"
     impact = _assess_impact(obs_pkg, result)
     assert impact.risk_level == "MEDIUM", "1.2.3 should match 1.2.3, resulting in MEDIUM risk"
+
+    # Case 6: Spaced specifiers
+    result.affected_versions = ">= 1.0.0, < 1.0.5"
+    mock_get_version.return_value = "1.0.4"
+    impact = _assess_impact(obs_pkg, result)
+    assert impact.risk_level == "MEDIUM", "1.0.4 should match '>= 1.0.0, < 1.0.5'"
+
+    # Case 7: Spaced operators without comma
+    result.affected_versions = ">= 1.0.0 < 1.0.5"
+    mock_get_version.return_value = "1.0.4"
+    impact = _assess_impact(obs_pkg, result)
+    assert impact.risk_level == "MEDIUM", "1.0.4 should match '>= 1.0.0 < 1.0.5'"
+
+    # Case 8: Multiple delimiters
+    result.affected_versions = ">=1.0.0; <1.0.5"
+    mock_get_version.return_value = "1.0.4"
+    impact = _assess_impact(obs_pkg, result)
+    assert impact.risk_level == "MEDIUM", "1.0.4 should match '>=1.0.0; <1.0.5'"

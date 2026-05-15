@@ -108,6 +108,50 @@ vulnews -c config.yaml --one-shot --dry-run
 -   `--dry-run`: Fetch feeds but skip LLM analysis and OBS search.
 -   `-v, --verbose`: Enable debug logging.
 
+## Deployment & Hardening
+
+For production environments, follow these recommendations:
+
+### 1. Restricted Permissions
+The `state_dir` contains cached data and potentially sensitive compromise logs. Restrict access to the user running `vulnews`:
+```bash
+chmod 700 ./state
+```
+This is particularly important to mitigate risks from transitive dependencies like `diskcache`.
+
+### 2. Authentication
+- **OBS (osc)**: Ensure `osc` is configured with valid credentials in `~/.oscrc`. Use token-based authentication if possible.
+- **GitHub**: Set the `GITHUB_TOKEN` environment variable to avoid rate limits when polling the Advisory Database:
+  ```bash
+  export GITHUB_TOKEN=your_token_here
+  ```
+
+### 3. Running as a Service (systemd)
+Create a unit file `/etc/systemd/system/vulnews.service`:
+```ini
+[Unit]
+Description=VulNews Supply Chain Monitor
+After=network.target
+
+[Service]
+Type=simple
+User=vulnews
+WorkingDirectory=/opt/vulnews
+ExecStart=/usr/bin/vulnews -c /etc/vulnews/config.yaml
+Restart=always
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### 4. Hardening Checklist
+- [ ] Run as a dedicated non-privileged user.
+- [ ] Use `HTTPS` for all source URLs.
+- [ ] Ensure `state_dir` is on a persistent volume with restricted permissions.
+- [ ] Monitor logs for `RedactingFilter` activity to ensure no secrets are leaking.
+- [ ] Use a local LLM for maximum privacy, or a trusted external provider.
+
 ## State Management
 
 VulNews maintains state in the directory specified by `state_dir` (default: `./state`):

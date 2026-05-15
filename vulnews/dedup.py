@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
+
+log = logging.getLogger("vulnews")
 
 
 class CompromiseDB:
@@ -17,10 +20,18 @@ class CompromiseDB:
     def _load(self) -> None:
         if not self._path.exists():
             return
-        with open(self._path) as f:
-            raw = json.load(f)
-        for entry in raw.get("compromises", []):
-            self._entries[entry["id"]] = entry
+        try:
+            with open(self._path) as f:
+                raw = json.load(f)
+            if not isinstance(raw, dict):
+                raise ValueError("Compromise DB must be a JSON mapping")
+            for entry in raw.get("compromises", []):
+                if not isinstance(entry, dict) or "id" not in entry:
+                    continue
+                self._entries[entry["id"]] = entry
+        except (json.JSONDecodeError, ValueError, OSError) as e:
+            log.warning("Failed to load compromise DB from %s, starting fresh: %s", self._path, e)
+            self._entries = {}
 
     @staticmethod
     def make_id(
