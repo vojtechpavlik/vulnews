@@ -1,4 +1,4 @@
-.TH VULNEWS 1 "2026-05-14" "0.1.0" "vulnews"
+.TH VULNEWS 1 "2026-05-15" "0.1.0" "vulnews"
 .SH NAME
 vulnews \- Supply chain vulnerability notifier for SUSE/openSUSE
 .SH SYNOPSIS
@@ -13,10 +13,10 @@ vulnews \- Supply chain vulnerability notifier for SUSE/openSUSE
 .SH DESCRIPTION
 .B vulnews
 is a tool designed to provide early warning of software supply chain compromises.
-It monitors a set of RSS/Atom feeds from security research blogs and platforms,
-analyzes the articles using a Large Language Model (LLM) to detect confirmed
-compromises, and then checks the openSUSE Build Service (OBS) for potentially
-affected packages.
+It monitors a set of sources (RSS/Atom feeds, JSON feeds, and the GitHub
+Advisory Database), analyzes the articles using a Large Language Model (LLM) to
+detect confirmed compromises, and then checks the openSUSE Build Service (OBS)
+for potentially affected packages.
 .PP
 The tool can run either as a daemon, polling feeds at regular intervals, or
 in a "one-shot" mode. When a compromise is detected and found to impact
@@ -57,7 +57,7 @@ and models) is stored. Default is "./state".
 .B sources
 A list of feed sources, each with a
 .BR name ,
-.BR type " (must be 'rss'), and"
+.BR type " (must be 'rss', 'json', or 'github_advisory'), and"
 .B url .
 .SH FILES
 .TP
