@@ -36,3 +36,17 @@
 
 - [x] **Ollama API Support**: Added `llm_type: ollama` to interact with external Ollama instances.
 - [x] **Notification Hooks**: Implemented `on_news_reported_command` and `on_package_affected_command` for automated alerting.
+
+## Ollama support hardening (2026-05-15)
+
+- [x] **Medium**: Enforce `llm_ollama_model` at config load time (fail fast).
+  - Action: Added validation in `load_config`.
+
+- [x] **Medium**: Add transport hardening guidance for Ollama endpoint usage.
+  - Action: Added startup warning for non-localhost HTTP Ollama and documented in README/config.
+
+- [x] **Low/Medium**: Align all docs with implemented `ollama` mode.
+  - Action: Updated `config.example.yaml` and `man/vulnews.1`.
+
+- [x] **Medium**: Add Ollama failure-path tests.
+  - Action: Added tests for HTTP errors, timeouts, and malformed JSON in `tests/test_llm.py`.

@@ -292,3 +292,19 @@ def test_process_article_missing_package_name(tmp_path, monkeypatch):
 
     pipeline._process_article(_make_article(title="compromise"), dry_run=False)
     assert reported == []
+
+def test_pipeline_ollama_insecure_warning(caplog):
+    from vulnews.pipeline import Pipeline
+    from vulnews.config import Config
+    import logging
+
+    config = Config(
+        llm_type="ollama",
+        llm_ollama_url="http://remote-ollama:11434",
+        llm_ollama_model="test",
+        sources=[]
+    )
+    with caplog.at_level(logging.WARNING):
+        Pipeline(config)
+    
+    assert "insecure plaintext transport" in caplog.text

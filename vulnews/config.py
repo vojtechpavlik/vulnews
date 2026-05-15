@@ -98,6 +98,10 @@ def load_config(path: str) -> Config:
         print(f"Error: llm_type must be 'local', 'external', or 'ollama'", file=sys.stderr)
         sys.exit(1)
 
+    if llm_type == "ollama" and not raw.get("llm_ollama_model"):
+        print("Error: llm_ollama_model is required when llm_type is 'ollama'", file=sys.stderr)
+        sys.exit(1)
+
     llm_command = []
     llm_command_raw = raw.get("llm_command")
     if llm_type == "external" and not llm_command_raw:

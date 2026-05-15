@@ -301,3 +301,76 @@ def test_analyze_ollama(monkeypatch):
         assert result.is_compromise is True
         assert result.package_name == "ollama-pkg"
         assert result.confidence == 0.95
+
+
+def test_analyze_ollama_http_error(monkeypatch):
+    import httpx
+    import respx
+    from httpx import Response
+    from vulnews.llm import analyze_article
+    from vulnews.config import Config
+
+    config = Config(
+        llm_type="ollama",
+        llm_ollama_url="http://ollama-host:11434",
+        llm_ollama_model="mistral-test",
+        sources=[]
+    )
+
+    with respx.mock:
+        respx.post("http://ollama-host:11434/api/chat").mock(
+            return_value=Response(500)
+        )
+
+        result = analyze_article(_make_article(), config)
+        assert result is None
+
+
+def test_analyze_ollama_timeout(monkeypatch):
+    import httpx
+    import respx
+    from vulnews.llm import analyze_article
+    from vulnews.config import Config
+
+    config = Config(
+        llm_type="ollama",
+        llm_ollama_url="http://ollama-host:11434",
+        llm_ollama_model="mistral-test",
+        sources=[]
+    )
+
+    with respx.mock:
+        respx.post("http://ollama-host:11434/api/chat").mock(side_effect=httpx.TimeoutException)
+
+        result = analyze_article(_make_article(), config)
+        assert result is None
+
+
+def test_analyze_ollama_bad_json(monkeypatch):
+    import httpx
+    import respx
+    from httpx import Response
+    from vulnews.llm import analyze_article
+    from vulnews.config import Config
+
+    config = Config(
+        llm_type="ollama",
+        llm_ollama_url="http://ollama-host:11434",
+        llm_ollama_model="mistral-test",
+        sources=[]
+    )
+
+    # Content is not valid JSON
+    ollama_response = {
+        "message": {
+            "content": "Not a JSON"
+        }
+    }
+
+    with respx.mock:
+        respx.post("http://ollama-host:11434/api/chat").mock(
+            return_value=Response(200, json=ollama_response)
+        )
+
+        result = analyze_article(_make_article(), config)
+        assert result is None

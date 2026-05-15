@@ -22,7 +22,8 @@ confidence_threshold: 0.5
 state_dir: ./state
 
 # LLM Configuration
-# Type can be 'local' (internal llama-cpp-python) or 'external' (llm_command).
+# Type can be 'local' (internal llama-cpp-python), 'ollama' (external Ollama API),
+# or 'external' (llm_command).
 llm_type: local
 
 # Local LLM settings (used when llm_type: local)
@@ -38,6 +39,7 @@ llm_local_chat_template: nemo
 # Ollama API settings (used when llm_type: ollama)
 # llm_ollama_url: http://localhost:11434
 # llm_ollama_model: mistral
+# NOTE: For remote Ollama endpoints, use HTTPS to protect data in transit.
 
 # External LLM settings (used when llm_type: external)
 # llm_command: >-

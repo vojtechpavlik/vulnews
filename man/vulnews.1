@@ -48,7 +48,13 @@ The configuration file is written in YAML. Key sections include:
 Integer. Time in seconds between polling cycles in daemon mode. Default is 300.
 .TP
 .B llm_type
-String. Either "local" or "external".
+String. One of "local", "ollama", or "external".
+.TP
+.B llm_ollama_url
+String. URL for the Ollama API. Default is "http://localhost:11434".
+.TP
+.B llm_ollama_model
+String. Name of the model to use on the Ollama instance (e.g., "mistral").
 .TP
 .B state_dir
 String. Path to a directory where persistent state (ETags, compromise database,

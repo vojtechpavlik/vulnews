@@ -40,9 +40,20 @@ class Pipeline:
     def __init__(self, config: Config):
         self.config = config
         self._check_state_dir()
+        self._check_llm_config()
         self.state_store = StateStore(config.state_dir)
         self.compromise_db = CompromiseDB(config.state_dir)
         self.sources = self._build_sources()
+
+    def _check_llm_config(self) -> None:
+        if self.config.llm_type == "ollama":
+            url = self.config.llm_ollama_url.lower()
+            if url.startswith("http://") and "localhost" not in url and "127.0.0.1" not in url:
+                log.warning(
+                    "Ollama endpoint %s uses insecure plaintext transport (HTTP). "
+                    "Use HTTPS or a trusted tunnel for remote endpoints to protect article content and secrets.",
+                    self.config.llm_ollama_url
+                )
 
     def _check_state_dir(self) -> None:
         p = Path(self.config.state_dir)

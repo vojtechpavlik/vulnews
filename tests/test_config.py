@@ -119,3 +119,33 @@ def test_load_config_env_and_list_command(tmp_path):
 def test_source_config_default_tier():
     sc = SourceConfig(name="x", type="rss", url="http://x")
     assert sc.tier == 3
+
+def test_load_config_ollama_missing_model(tmp_path):
+    config_file = tmp_path / "config_ollama_missing.yaml"
+    config_file.write_text("""
+sources:
+  - name: test
+    type: rss
+    url: http://test
+llm_type: ollama
+""")
+    import pytest
+    from vulnews.config import load_config
+    with pytest.raises(SystemExit):
+        load_config(str(config_file))
+
+
+def test_load_config_ollama_empty_model(tmp_path):
+    config_file = tmp_path / "config_ollama_empty.yaml"
+    config_file.write_text("""
+sources:
+  - name: test
+    type: rss
+    url: http://test
+llm_type: ollama
+llm_ollama_model: ""
+""")
+    import pytest
+    from vulnews.config import load_config
+    with pytest.raises(SystemExit):
+        load_config(str(config_file))
