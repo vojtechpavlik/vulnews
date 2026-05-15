@@ -4,10 +4,11 @@ import json
 import logging
 import os
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from html.parser import HTMLParser
 from io import StringIO
+from typing import Any
 
 import feedparser
 import httpx
@@ -28,6 +29,8 @@ class Article:
     content: str
     published: str | None
     raw_id: str
+    # Structured data "hints" to avoid lossy LLM conversion (e.g., version ranges)
+    structured_hints: dict[str, Any] = field(default_factory=dict)
 
 
 class _HTMLStripper(HTMLParser):
@@ -256,6 +259,17 @@ class GitHubAdvisorySource(Source):
 
             content = (adv.get("description") or "") + vuln_info
 
+            # Populate structured hints to avoid lossy LLM conversion
+            hints = {}
+            if vulns:
+                # We take the first one as primary, or aggregate if needed.
+                # For now, we follow the pipeline's expected fields.
+                v = vulns[0]
+                pkg = v.get("package", {})
+                hints["package_name"] = pkg.get("name")
+                hints["package_ecosystem"] = pkg.get("ecosystem")
+                hints["affected_versions"] = v.get("vulnerable_version_range")
+
             articles.append(Article(
                 source_name=self.config.name,
                 title=adv.get("summary", "(no title)"),
@@ -263,6 +277,7 @@ class GitHubAdvisorySource(Source):
                 content=content,
                 published=published_at_str,
                 raw_id=adv.get("ghsa_id", ""),
+                structured_hints=hints,
             ))
 
         return articles, FeedState(

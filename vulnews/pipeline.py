@@ -95,6 +95,13 @@ class Pipeline:
             log.warning("LLM analysis failed for: %s", article.title)
             return
 
+        # Apply structured hints if available (Structured Bypass)
+        # This prevents lossy conversion of machine-readable fields like version ranges.
+        if article.structured_hints:
+            for field, value in article.structured_hints.items():
+                if hasattr(result, field) and value:
+                    setattr(result, field, value)
+
         if not result.is_compromise or result.confidence < self.config.confidence_threshold:
             log.info(
                 "Not a compromise (confidence=%.2f): %s",
