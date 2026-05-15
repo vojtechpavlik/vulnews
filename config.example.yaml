@@ -11,6 +11,13 @@ max_articles_per_source: 10
 # Minimum confidence threshold for LLM compromise detection (0.0 - 1.0).
 confidence_threshold: 0.5
 
+# Commands to run when events occur.
+# The command is called with a JSON payload on STDIN.
+# on_news_reported_command is triggered for every new compromise detected.
+# on_news_reported_command: ["/usr/local/bin/notify-news"]
+# on_package_affected_command is triggered when a compromise affects an OBS package.
+# on_package_affected_command: ["/usr/local/bin/notify-obs"]
+
 # Directory for persistent state (ETag cache, compromise database, models).
 state_dir: ./state
 

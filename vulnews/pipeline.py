@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import json
 import logging
 import re
+import subprocess
 import time
 from dataclasses import asdict
 from datetime import UTC, datetime
 from packaging.specifiers import SpecifierSet, InvalidSpecifier
 from packaging.version import Version, InvalidVersion
+from pathlib import Path
 
 from vulnews.config import Config
 from vulnews.dedup import CompromiseDB
@@ -31,10 +34,8 @@ SOURCE_TYPES: dict[str, type[Source]] = {
     "github_advisory": GitHubAdvisorySource,
     "json": JSONSource,
 }
-from pathlib import Path
 
-from vulnews.config import Config
-...
+
 class Pipeline:
     def __init__(self, config: Config):
         self.config = config
@@ -56,7 +57,6 @@ class Pipeline:
                 )
 
     def _build_sources(self) -> dict[str, Source]:
-
         result = {}
         for sc in self.config.sources:
             cls = SOURCE_TYPES.get(sc.type)
@@ -166,6 +166,20 @@ class Pipeline:
         })
         self.compromise_db.save()
 
+        # Trigger on_news_reported_command
+        self._run_notification(
+            self.config.on_news_reported_command,
+            {
+                "event": "news_reported",
+                "package_name": result.package_name,
+                "package_ecosystem": result.package_ecosystem,
+                "affected_versions": result.affected_versions,
+                "summary": result.summary,
+                "source_name": article.source_name,
+                "source_url": article.url,
+            }
+        )
+
         names = obs_package_names(result.package_name or "", result.package_ecosystem)
         all_obs_pkgs: list[OBSPackage] = []
         for pkg_name in names:
@@ -188,6 +202,19 @@ class Pipeline:
         )
         self.compromise_db.save()
 
+        # Trigger on_package_affected_command
+        self._run_notification(
+            self.config.on_package_affected_command,
+            {
+                "event": "package_affected",
+                "package_name": result.package_name,
+                "package_ecosystem": result.package_ecosystem,
+                "affected_versions": result.affected_versions,
+                "summary": result.summary,
+                "obs_results": [asdict(i) for i in impacts],
+            }
+        )
+
         report_findings(result, impacts)
 
     def run_daemon(self, source_filter: str | None = None) -> None:
@@ -195,6 +222,28 @@ class Pipeline:
             self.run_once(source_filter)
             log.info("Sleeping %d seconds...", self.config.poll_interval)
             time.sleep(self.config.poll_interval)
+
+    def _run_notification(self, command: list[str], payload: dict) -> None:
+        if not command:
+            return
+
+        try:
+            input_text = json.dumps(payload)
+            proc = subprocess.run(
+                command,
+                input=input_text,
+                text=True,
+                capture_output=True,
+            )
+            if proc.returncode != 0:
+                log.warning(
+                    "Notification command failed (exit %d): %s",
+                    proc.returncode, proc.stderr[:200]
+                )
+            else:
+                log.debug("Notification command executed successfully")
+        except Exception as e:
+            log.warning("Failed to run notification command: %s", e)
 
 
 def _normalize_specifiers(spec_str: str) -> str:

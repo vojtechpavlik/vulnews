@@ -39,6 +39,8 @@ class Config:
         "^openSUSE:Backports:",
     ])
     obs_max_packages: int = 10
+    on_news_reported_command: list[str] = field(default_factory=list)
+    on_package_affected_command: list[str] = field(default_factory=list)
     sources: list[SourceConfig] = field(default_factory=list)
 
 
@@ -136,6 +138,17 @@ def load_config(path: str) -> Config:
         print("Error: obs_max_packages must be a positive integer", file=sys.stderr)
         sys.exit(1)
 
+    def parse_command(val: Any, name: str) -> list[str]:
+        if not val:
+            return []
+        if isinstance(val, str):
+            import shlex
+            return shlex.split(val)
+        if isinstance(val, list):
+            return [str(x) for x in val]
+        print(f"Error: {name} must be a string or a list of strings", file=sys.stderr)
+        sys.exit(1)
+
     return Config(
         poll_interval=poll_interval,
         llm_type=llm_type,
@@ -159,5 +172,7 @@ def load_config(path: str) -> Config:
             "^openSUSE:Backports:",
         ]),
         obs_max_packages=obs_max_packages,
+        on_news_reported_command=parse_command(raw.get("on_news_reported_command"), "on_news_reported_command"),
+        on_package_affected_command=parse_command(raw.get("on_package_affected_command"), "on_package_affected_command"),
         sources=sources,
     )
