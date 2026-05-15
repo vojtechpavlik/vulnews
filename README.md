@@ -7,7 +7,7 @@ VulNews is a fast-reaction vulnerability notifier for SUSE/openSUSE. It monitors
 VulNews operates through a multi-stage pipeline:
 
 1.  **Ingestion**: Subscribes to configured sources—RSS/Atom feeds, JSON Feeds (RFC 8927), or the GitHub Advisory Database—to fetch the latest articles and advisories. It uses ETag, Last-Modified headers, and API-specific caching to efficiently poll for new content.
-2.  **Analysis**: Each new article is analyzed by an LLM (either locally via `llama-cpp-python` or externally via a command-line tool) to determine if it describes a *confirmed* supply chain compromise.
+2.  **Analysis**: Each new article is analyzed by an LLM (locally via `llama-cpp-python`, via **Ollama API**, or externally via a command-line tool) to determine if it describes a *confirmed* supply chain compromise.
 3.  **Extraction & Integration**: If a compromise is detected, the LLM extracts key details (affected package name, ecosystem, version range, and compromised timeframe). For structured sources like GitHub Advisories, **Structured Bypass** ensures that machine-readable fields (like precise semantic version ranges) are preserved without LLM-induced "lossy" conversion.
 4.  **Deduplication**: Checks a local database to ensure the compromise hasn't been reported before.
 5.  **Impact Assessment**: Uses `osc` (openSUSE Commander) to search for the affected package in OBS. If found, it performs **semantic version range matching** to determine if the local version is vulnerable. It also analyzes changelogs and source listings to determine if the package was updated during the compromised window or contains known malicious files.
@@ -75,8 +75,9 @@ cp config.example.yaml config.yaml
 ### Key Configuration Options:
 
 -   `poll_interval`: Interval in seconds between polls when running as a daemon.
--   `llm_type`: `local` (internal llama-cpp-python) or `external` (calls an external command).
+-   `llm_type`: `local` (internal llama-cpp-python), `ollama` (external Ollama API), or `external` (calls an external command).
 -   `llm_local_model_repo` / `llm_local_model_file`: Hugging Face repository and filename for the local model.
+-   `llm_ollama_url` / `llm_ollama_model`: URL and model name for Ollama API.
 -   `llm_local_chat_template`: Chat template format for local LLM (e.g., `nemo`, `llama-3`, `generic`).
 -   `llm_command`: Command to run for external LLM analysis (e.g., using Gemini CLI).
 -   `sources`: List of feeds to monitor. Supported types: `rss` (RSS/Atom), `json` (JSON Feed), and `github_advisory` (GitHub Advisory REST API).

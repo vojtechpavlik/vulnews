@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import logging
 import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
 
-from vulnews.__main__ import main
+from vulnews.__main__ import RedactingFilter, main
 
 
 def test_main_missing_config(monkeypatch):
@@ -51,3 +52,21 @@ def test_main_one_shot(tmp_path, monkeypatch):
 
     assert len(run_once_calls) == 1
     assert run_once_calls[0]["dry_run"] is True
+
+
+def test_redacting_filter_redacts_authorization_token_value():
+    record = logging.LogRecord(
+        name="vulnews",
+        level=logging.WARNING,
+        pathname=__file__,
+        lineno=1,
+        msg="Authorization: token ghp_SECRET123",
+        args=(),
+        exc_info=None,
+    )
+
+    RedactingFilter().filter(record)
+    rendered = record.getMessage()
+
+    assert "[REDACTED]" in rendered
+    assert "ghp_SECRET123" not in rendered

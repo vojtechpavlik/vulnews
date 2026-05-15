@@ -28,6 +28,8 @@ class Config:
     llm_local_n_threads: int = 4
     llm_local_n_gpu_layers: int = 0
     llm_local_chat_template: str = "generic"
+    llm_ollama_url: str = "http://localhost:11434"
+    llm_ollama_model: str | None = None
     state_dir: str = "./state"
     max_articles_per_source: int = 10
     confidence_threshold: float = 0.5
@@ -92,8 +94,8 @@ def load_config(path: str) -> Config:
         sys.exit(1)
 
     llm_type = raw.get("llm_type", "local")
-    if llm_type not in ("local", "external"):
-        print(f"Error: llm_type must be 'local' or 'external'", file=sys.stderr)
+    if llm_type not in ("local", "external", "ollama"):
+        print(f"Error: llm_type must be 'local', 'external', or 'ollama'", file=sys.stderr)
         sys.exit(1)
 
     llm_command = []
@@ -161,6 +163,8 @@ def load_config(path: str) -> Config:
         llm_local_n_threads=raw.get("llm_local_n_threads", 4),
         llm_local_n_gpu_layers=raw.get("llm_local_n_gpu_layers", 0),
         llm_local_chat_template=raw.get("llm_local_chat_template", "generic"),
+        llm_ollama_url=raw.get("llm_ollama_url", "http://localhost:11434"),
+        llm_ollama_model=raw.get("llm_ollama_model"),
         state_dir=raw.get("state_dir", "./state"),
         max_articles_per_source=max_articles_per_source,
         confidence_threshold=confidence_threshold,

@@ -237,8 +237,8 @@ class Pipeline:
             )
             if proc.returncode != 0:
                 log.warning(
-                    "Notification command failed (exit %d): %s",
-                    proc.returncode, proc.stderr[:200]
+                    "Notification command failed for event %s (exit %d)",
+                    payload.get("event", "unknown"), proc.returncode
                 )
             else:
                 log.debug("Notification command executed successfully")

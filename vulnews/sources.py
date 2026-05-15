@@ -270,10 +270,17 @@ class GitHubAdvisorySource(Source):
             except ValueError:
                 pass
 
-            vulns = adv.get("vulnerabilities", [])
+            vulns = adv.get("vulnerabilities")
+            if not isinstance(vulns, list):
+                vulns = []
+
             vuln_info = "\n\nAffected packages:\n"
             for v in vulns:
-                pkg = v.get("package", {})
+                if not isinstance(v, dict):
+                    continue
+                pkg = v.get("package")
+                if not isinstance(pkg, dict):
+                    pkg = {}
                 eco = pkg.get("ecosystem", "unknown")
                 name = pkg.get("name", "unknown")
                 ver = v.get("vulnerable_version_range", "unknown")
@@ -283,14 +290,13 @@ class GitHubAdvisorySource(Source):
 
             # Populate structured hints to avoid lossy LLM conversion
             hints = {}
-            if vulns:
-                # We take the first one as primary, or aggregate if needed.
-                # For now, we follow the pipeline's expected fields.
+            if vulns and isinstance(vulns[0], dict):
                 v = vulns[0]
-                pkg = v.get("package", {})
-                hints["package_name"] = pkg.get("name")
-                hints["package_ecosystem"] = pkg.get("ecosystem")
-                hints["affected_versions"] = v.get("vulnerable_version_range")
+                pkg = v.get("package")
+                if isinstance(pkg, dict):
+                    hints["package_name"] = pkg.get("name")
+                    hints["package_ecosystem"] = pkg.get("ecosystem")
+                    hints["affected_versions"] = v.get("vulnerable_version_range")
 
             articles.append(Article(
                 source_name=self.config.name,

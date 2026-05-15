@@ -261,3 +261,43 @@ def test_analyze_local_mocked(monkeypatch):
     mock_llama_cls.assert_called_once()
     args, kwargs = mock_llama_cls.call_args
     assert kwargs.get("chat_format") == config.llm_local_chat_template
+
+
+def test_analyze_ollama(monkeypatch):
+    import httpx
+    import respx
+    from httpx import Response
+    from vulnews.llm import analyze_article
+    from vulnews.config import Config
+
+    config = Config(
+        llm_type="ollama",
+        llm_ollama_url="http://ollama-host:11434",
+        llm_ollama_model="mistral-test",
+        sources=[]
+    )
+
+    ollama_response = {
+        "model": "mistral-test",
+        "message": {
+            "role": "assistant",
+            "content": json.dumps({
+                "is_compromise": True,
+                "confidence": 0.95,
+                "package_name": "ollama-pkg",
+                "package_ecosystem": "npm",
+                "summary": "Ollama test result"
+            })
+        }
+    }
+
+    with respx.mock:
+        respx.post("http://ollama-host:11434/api/chat").mock(
+            return_value=Response(200, json=ollama_response)
+        )
+
+        result = analyze_article(_make_article(), config)
+        assert result is not None
+        assert result.is_compromise is True
+        assert result.package_name == "ollama-pkg"
+        assert result.confidence == 0.95

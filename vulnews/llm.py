@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import subprocess
+import httpx
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, List, Optional
@@ -135,9 +136,41 @@ def analyze_article(
         return _analyze_external(article, input_text, config)
     elif config.llm_type == "local":
         return _analyze_local(article, input_text, config)
+    elif config.llm_type == "ollama":
+        return _analyze_ollama(article, input_text, config)
     else:
         log.error("Unknown llm_type: %s", config.llm_type)
         return None
+
+
+def _analyze_ollama(article: Article, input_text: str, config: Any) -> LLMResult | None:
+    if not config.llm_ollama_model:
+        log.error("llm_ollama_model is required when llm_type is 'ollama'")
+        return None
+
+    url = f"{config.llm_ollama_url.rstrip('/')}/api/chat"
+    payload = {
+        "model": config.llm_ollama_model,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": input_text}
+        ],
+        "stream": False,
+        "format": "json"
+    }
+
+    try:
+        with httpx.Client(timeout=120) as client:
+            resp = client.post(url, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+            raw = data["message"]["content"]
+            parsed = json.loads(raw)
+            return _map_to_result(parsed, raw)
+    except Exception as e:
+        log.error("Ollama API inference failed for %s: %s", article.title, e)
+        return None
+
 
 def _analyze_external(article: Article, input_text: str, config: Any) -> LLMResult | None:
     env = os.environ.copy()
@@ -162,17 +195,13 @@ def _analyze_external(article: Article, input_text: str, config: Any) -> LLMResu
         return None
 
     if proc.returncode != 0:
-        log.debug(
-            "LLM exited %d for %s: %s",
-            proc.returncode, article.title, proc.stderr[:200],
-        )
         log.warning("LLM command failed for %s (exit %d)", article.title, proc.returncode)
         return None
 
     raw = proc.stdout
     parsed = _extract_json(raw)
     if parsed is None:
-        log.warning("Failed to parse LLM JSON for %s: %.200s", article.title, raw)
+        log.warning("Failed to parse LLM JSON for %s (length %d)", article.title, len(raw))
         return None
 
     return _map_to_result(parsed, raw)

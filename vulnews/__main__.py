@@ -11,25 +11,30 @@ from vulnews.pipeline import Pipeline
 
 class RedactingFilter(logging.Filter):
     def filter(self, record):
-        # We redact both the raw message and the args if they are strings
-        msg = str(record.msg)
+        # Format the message first to redact fully-rendered string
+        formatted_msg = record.getMessage()
         
         def redact(text):
-            return re.sub(
-                r'(?i)(token|Bearer|authorization|api-key)[:\s]+[a-zA-Z0-9._-]+',
+            # 1. Redact Authorization header style secrets
+            # Matches "Authorization: Bearer <secret>", "Authorization: token <secret>", or "token: <secret>"
+            # We allow an optional "Bearer " or "token " inside the value part.
+            text = re.sub(
+                r'(?i)\b(Authorization|Bearer|token|api-key|apikey)\b[:\s]+(?:Bearer\s+|token\s+)?\S+',
                 r'\1: [REDACTED]',
                 text
             )
+            # 2. Redact query-param / key-value style forms (token=..., api_key=...)
+            text = re.sub(
+                r'(?i)\b(token|api_key|apikey)=([a-zA-Z0-9._~+\/=-]+)',
+                r'\1=[REDACTED]',
+                text
+            )
+            return text
 
-        record.msg = redact(msg)
-        if record.args:
-            new_args = []
-            for arg in record.args:
-                if isinstance(arg, str):
-                    new_args.append(redact(arg))
-                else:
-                    new_args.append(arg)
-            record.args = tuple(new_args)
+        # Update record msg with redacted final version
+        # and clear args to prevent downstream re-formatting
+        record.msg = redact(formatted_msg)
+        record.args = ()
         
         return True
 

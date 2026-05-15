@@ -35,6 +35,10 @@ llm_local_n_threads: 4
 llm_local_n_gpu_layers: 0
 llm_local_chat_template: nemo
 
+# Ollama API settings (used when llm_type: ollama)
+# llm_ollama_url: http://localhost:11434
+# llm_ollama_model: mistral
+
 # External LLM settings (used when llm_type: external)
 # llm_command: >-
 #   gemini -p "You are a supply chain security analyst. Read the article
