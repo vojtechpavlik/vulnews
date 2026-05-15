@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -169,7 +170,106 @@ class GitHubAdvisorySource(Source):
         self.config = config
 
     def poll(self, state: FeedState) -> tuple[list[Article], FeedState]:
-        raise NotImplementedError("GitHub Advisory source not yet implemented")
+        headers = {
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "vulnews/0.1.0"
+        }
+        token = os.environ.get("GITHUB_TOKEN")
+        if token:
+            headers["Authorization"] = f"token {token}"
+
+        if state.etag:
+            headers["If-None-Match"] = state.etag
+        if state.last_modified:
+            headers["If-Modified-Since"] = state.last_modified
+
+        url = self.config.url or "https://api.github.com/advisories"
+
+        try:
+            with httpx.Client(timeout=30, follow_redirects=True) as client:
+                with client.stream("GET", url, headers=headers) as resp:
+                    if resp.status_code == 304:
+                        log.debug("304 Not Modified for %s", self.config.name)
+                        return [], FeedState(
+                            etag=state.etag,
+                            last_modified=state.last_modified,
+                            last_polled=datetime.now(UTC).isoformat(),
+                        )
+
+                    if resp.status_code != 200:
+                        log.warning("HTTP %d from %s", resp.status_code, self.config.name)
+                        return [], state
+
+                    content_length = resp.headers.get("Content-Length")
+                    if content_length and int(content_length) > MAX_FEED_SIZE:
+                        log.warning("GitHub Advisory Feed too large: %s", self.config.name)
+                        return [], state
+
+                    chunks = []
+                    size = 0
+                    for chunk in resp.iter_bytes():
+                        size += len(chunk)
+                        if size > MAX_FEED_SIZE:
+                            log.warning("GitHub Advisory Feed too large: %s", self.config.name)
+                            return [], state
+                        chunks.append(chunk)
+
+                    data = json.loads(b"".join(chunks))
+                    resp_headers = resp.headers
+        except (httpx.HTTPError, json.JSONDecodeError) as e:
+            log.warning("Error polling GitHub Advisories %s: %s", self.config.name, e)
+            return [], state
+
+        articles = []
+        last_polled_dt = None
+        if state.last_polled:
+            try:
+                last_polled_dt = datetime.fromisoformat(state.last_polled.replace("Z", "+00:00"))
+            except ValueError:
+                pass
+
+        new_last_polled = state.last_polled
+
+        # GitHub API returns a list of advisories, sorted by published_at desc
+        for adv in data:
+            published_at_str = adv.get("published_at")
+            if not published_at_str:
+                continue
+
+            published_at = datetime.fromisoformat(published_at_str.replace("Z", "+00:00"))
+
+            if last_polled_dt and published_at <= last_polled_dt:
+                break
+
+            if not new_last_polled or published_at > datetime.fromisoformat(new_last_polled.replace("Z", "+00:00")):
+                new_last_polled = published_at_str
+
+            vulns = adv.get("vulnerabilities", [])
+            vuln_info = "\n\nAffected packages:\n"
+            for v in vulns:
+                pkg = v.get("package", {})
+                eco = pkg.get("ecosystem", "unknown")
+                name = pkg.get("name", "unknown")
+                ver = v.get("vulnerable_version_range", "unknown")
+                vuln_info += f"- {eco}/{name}: {ver}\n"
+
+            content = (adv.get("description") or "") + vuln_info
+
+            articles.append(Article(
+                source_name=self.config.name,
+                title=adv.get("summary", "(no title)"),
+                url=adv.get("html_url", ""),
+                content=content,
+                published=published_at_str,
+                raw_id=adv.get("ghsa_id", ""),
+            ))
+
+        return articles, FeedState(
+            etag=resp_headers.get("ETag", state.etag),
+            last_modified=resp_headers.get("Last-Modified", state.last_modified),
+            last_polled=new_last_polled,
+        )
 
 
 class JSONSource(Source):

@@ -133,9 +133,3 @@ def test_rss_source_poll_malformed(source_config):
     articles, state = source.poll(FeedState())
 
     assert articles == []
-
-
-def test_github_advisory_source_not_implemented(source_config):
-    source = GitHubAdvisorySource(source_config)
-    with pytest.raises(NotImplementedError):
-        source.poll(FeedState())

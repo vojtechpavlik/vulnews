@@ -137,3 +137,8 @@ sources:
     type: rss
     url: https://sansec.io/feed
     tier: 3
+
+  - name: github-malware
+    type: github_advisory
+    url: https://api.github.com/advisories?type=malware
+    tier: 1
