@@ -59,7 +59,7 @@ llm_local_chat_template: nemo
 #   \"summary\": \"Not a supply chain compromise.\"}" --skip-trust
 
 # Feed sources.
-# Types: rss (RSS/Atom polling), github_advisory (stub, not yet implemented).
+# Types: rss (RSS/Atom polling), json (JSON Feed format), github_advisory (stub).
 # Tiers: 1 = real-time ingestion, 2 = deep forensics, 3 = foundational.
 sources:
   # --- Tier 1: Real-time ingestion and pre-execution telemetry ---
@@ -70,7 +70,7 @@ sources:
     tier: 1
 
   - name: socket-json
-    type: rss
+    type: json
     url: https://socket.dev/api/feed.json
     tier: 1
 

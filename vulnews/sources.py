@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -14,6 +15,8 @@ from vulnews.config import SourceConfig
 from vulnews.state import FeedState
 
 log = logging.getLogger("vulnews")
+
+MAX_FEED_SIZE = 5 * 1024 * 1024  # 5 MB
 
 
 @dataclass
@@ -74,32 +77,50 @@ class RSSSource(Source):
 
         try:
             with httpx.Client(timeout=30, follow_redirects=True) as client:
-                resp = client.get(self.config.url, headers=headers)
+                with client.stream("GET", self.config.url, headers=headers) as resp:
+                    if resp.status_code == 304:
+                        log.debug("304 Not Modified for %s", self.config.name)
+                        return [], FeedState(
+                            etag=state.etag,
+                            last_modified=state.last_modified,
+                            last_polled=datetime.now(UTC).isoformat(),
+                        )
+
+                    if resp.status_code != 200:
+                        log.warning("HTTP %d from %s", resp.status_code, self.config.name)
+                        return [], state
+
+                    content_length = resp.headers.get("Content-Length")
+                    if content_length and int(content_length) > MAX_FEED_SIZE:
+                        log.warning("Feed too large: %s (Content-Length: %s)",
+                                    self.config.name, content_length)
+                        return [], state
+
+                    chunks = []
+                    size = 0
+                    for chunk in resp.iter_bytes():
+                        size += len(chunk)
+                        if size > MAX_FEED_SIZE:
+                            log.warning("Feed too large: %s (streaming limit exceeded)",
+                                        self.config.name)
+                            return [], state
+                        chunks.append(chunk)
+
+                    resp_text = b"".join(chunks).decode(resp.encoding or "utf-8", errors="replace")
+                    resp_headers = resp.headers
         except httpx.HTTPError as e:
             log.warning("HTTP error polling %s: %s", self.config.name, e)
             return [], state
 
         now = datetime.now(UTC).isoformat()
 
-        if resp.status_code == 304:
-            log.debug("304 Not Modified for %s", self.config.name)
-            return [], FeedState(
-                etag=state.etag,
-                last_modified=state.last_modified,
-                last_polled=now,
-            )
-
-        if resp.status_code != 200:
-            log.warning("HTTP %d from %s", resp.status_code, self.config.name)
-            return [], state
-
         new_state = FeedState(
-            etag=resp.headers.get("ETag", state.etag),
-            last_modified=resp.headers.get("Last-Modified", state.last_modified),
+            etag=resp_headers.get("ETag", state.etag),
+            last_modified=resp_headers.get("Last-Modified", state.last_modified),
             last_polled=now,
         )
 
-        feed = feedparser.parse(resp.text)
+        feed = feedparser.parse(resp_text)
         if getattr(feed, "bozo", 0):
             log.warning("Malformed RSS feed from %s: %s", self.config.name,
                         getattr(feed, "bozo_exception", "unknown error"))
@@ -149,3 +170,85 @@ class GitHubAdvisorySource(Source):
 
     def poll(self, state: FeedState) -> tuple[list[Article], FeedState]:
         raise NotImplementedError("GitHub Advisory source not yet implemented")
+
+
+class JSONSource(Source):
+    def __init__(self, config: SourceConfig):
+        self.config = config
+
+    def poll(self, state: FeedState) -> tuple[list[Article], FeedState]:
+        headers = {}
+        if state.etag:
+            headers["If-None-Match"] = state.etag
+        if state.last_modified:
+            headers["If-Modified-Since"] = state.last_modified
+
+        try:
+            with httpx.Client(timeout=30, follow_redirects=True) as client:
+                with client.stream("GET", self.config.url, headers=headers) as resp:
+                    if resp.status_code == 304:
+                        log.debug("304 Not Modified for %s", self.config.name)
+                        return [], FeedState(
+                            etag=state.etag,
+                            last_modified=state.last_modified,
+                            last_polled=datetime.now(UTC).isoformat(),
+                        )
+
+                    if resp.status_code != 200:
+                        log.warning("HTTP %d from %s", resp.status_code, self.config.name)
+                        return [], state
+
+                    content_length = resp.headers.get("Content-Length")
+                    if content_length and int(content_length) > MAX_FEED_SIZE:
+                        log.warning("JSON Feed too large: %s (Content-Length: %s)",
+                                    self.config.name, content_length)
+                        return [], state
+
+                    chunks = []
+                    size = 0
+                    for chunk in resp.iter_bytes():
+                        size += len(chunk)
+                        if size > MAX_FEED_SIZE:
+                            log.warning("JSON Feed too large: %s (streaming limit exceeded)",
+                                        self.config.name)
+                            return [], state
+                        chunks.append(chunk)
+
+                    data = json.loads(b"".join(chunks))
+                    resp_headers = resp.headers
+        except (httpx.HTTPError, json.JSONDecodeError) as e:
+            log.warning("Error polling JSON feed %s: %s", self.config.name, e)
+            return [], state
+
+        now = datetime.now(UTC).isoformat()
+        new_state = FeedState(
+            etag=resp_headers.get("ETag", state.etag),
+            last_modified=resp_headers.get("Last-Modified", state.last_modified),
+            last_polled=now,
+        )
+
+        articles = []
+        items = data.get("items", [])
+        for item in items:
+            content_html = item.get("content_html", "")
+            content_text = item.get("content_text", "")
+            if not content_text and content_html:
+                content_text = scrub_text(strip_html(content_html))
+            if not content_text:
+                content_text = item.get("summary", "")
+
+            published = item.get("date_published")
+            raw_id = str(item.get("id", ""))
+            link = item.get("url", "")
+            title = item.get("title", "(no title)")
+
+            articles.append(Article(
+                source_name=self.config.name,
+                title=title,
+                url=link,
+                content=content_text,
+                published=published,
+                raw_id=raw_id,
+            ))
+
+        return articles, new_state

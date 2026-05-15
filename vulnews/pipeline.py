@@ -4,6 +4,8 @@ import logging
 import time
 from dataclasses import asdict
 from datetime import UTC, datetime
+from packaging.specifiers import SpecifierSet, InvalidSpecifier
+from packaging.version import Version, InvalidVersion
 
 from vulnews.config import Config
 from vulnews.dedup import CompromiseDB
@@ -18,7 +20,7 @@ from vulnews.obs import (
     search_package,
 )
 from vulnews.report import ImpactResult, report_findings, report_not_in_obs
-from vulnews.sources import Article, GitHubAdvisorySource, RSSSource, Source
+from vulnews.sources import Article, GitHubAdvisorySource, JSONSource, RSSSource, Source
 from vulnews.state import StateStore
 
 log = logging.getLogger("vulnews")
@@ -26,6 +28,7 @@ log = logging.getLogger("vulnews")
 SOURCE_TYPES: dict[str, type[Source]] = {
     "rss": RSSSource,
     "github_advisory": GitHubAdvisorySource,
+    "json": JSONSource,
 }
 
 
@@ -161,6 +164,32 @@ class Pipeline:
             time.sleep(self.config.poll_interval)
 
 
+def _version_matches(version_str: str, spec_str: str) -> bool:
+    try:
+        v = Version(version_str)
+    except InvalidVersion:
+        return version_str in spec_str
+
+    try:
+        # SpecifierSet handles comma-separated ranges (e.g. ">=1.0.0,<1.0.5")
+        # We also replace spaces with commas to handle common LLM/human output
+        spec_str_clean = spec_str.replace(" ", ",")
+        spec = SpecifierSet(spec_str_clean)
+        # If spec is empty (no operators), it might be an exact version
+        if not spec:
+            try:
+                return v == Version(spec_str)
+            except InvalidVersion:
+                return False
+        return v in spec
+    except InvalidSpecifier:
+        # Fallback for exact version without operators or other weirdness
+        try:
+            return v == Version(spec_str)
+        except InvalidVersion:
+            return version_str in spec_str
+
+
 def _assess_impact(obs_pkg: OBSPackage, result: LLMResult) -> ImpactResult:
     updated_during_window = False
     changelog_excerpt = ""
@@ -169,8 +198,7 @@ def _assess_impact(obs_pkg: OBSPackage, result: LLMResult) -> ImpactResult:
     version = get_version(obs_pkg.project, obs_pkg.package)
     version_match = False
     if version and result.affected_versions:
-        if version in result.affected_versions:
-            version_match = True
+        version_match = _version_matches(version, result.affected_versions)
 
     entries = get_log(obs_pkg.project, obs_pkg.package)
     if result.compromised_timeframe_start or result.compromised_timeframe_end:

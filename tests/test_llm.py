@@ -256,3 +256,8 @@ def test_analyze_local_mocked(monkeypatch):
     assert result.is_compromise is True
     assert result.package_name == "local-evil"
     assert result.package_ecosystem == "pypi"
+
+    # Verify Llama was called with chat_format
+    mock_llama_cls.assert_called_once()
+    args, kwargs = mock_llama_cls.call_args
+    assert kwargs.get("chat_format") == config.llm_local_chat_template

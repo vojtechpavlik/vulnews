@@ -124,7 +124,7 @@ def test_assess_impact_low_risk(monkeypatch):
     ])
     monkeypatch.setattr("vulnews.pipeline.list_files", lambda p, pkg: ["safe.js"])
     monkeypatch.setattr("vulnews.pipeline.get_changelog", lambda p, pkg: "")
-    monkeypatch.setattr("vulnews.pipeline.get_version", lambda p, pkg: "1.0.4")
+    monkeypatch.setattr("vulnews.pipeline.get_version", lambda p, pkg: "1.1.0")
 
     result = _assess_impact(OBSPackage("Factory", "pkg"), _make_llm_result())
     assert result.risk_level == "LOW"

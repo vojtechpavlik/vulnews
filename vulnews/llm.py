@@ -83,6 +83,7 @@ def get_llama(config: Any):
         n_ctx=config.llm_local_n_ctx,
         n_threads=config.llm_local_n_threads,
         n_gpu_layers=config.llm_local_n_gpu_layers,
+        chat_format=config.llm_local_chat_template,
         verbose=False,
     )
     return _llama_instance

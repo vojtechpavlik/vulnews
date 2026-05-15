@@ -14,6 +14,7 @@ dependencies = [
     "llama-cpp-python>=0.2.77",
     "pydantic>=2.0",
     "huggingface_hub>=0.23",
+    "defusedxml>=0.7",
 ]
 
 [project.optional-dependencies]
