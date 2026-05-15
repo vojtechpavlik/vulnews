@@ -2,10 +2,23 @@ from __future__ import annotations
 
 import argparse
 import logging
+import re
 import sys
 
 from vulnews.config import load_config
 from vulnews.pipeline import Pipeline
+
+
+class RedactingFilter(logging.Filter):
+    def filter(self, record):
+        if record.msg and isinstance(record.msg, str):
+            # Redact common token patterns
+            record.msg = re.sub(
+                r'(?i)(token|Bearer|authorization|api-key)[:\s]+[a-zA-Z0-9._-]+',
+                r'\1: [REDACTED]',
+                record.msg
+            )
+        return True
 
 
 def main() -> None:
@@ -39,12 +52,15 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(
-        level=level,
+        level=logging.INFO,
         format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+    if args.verbose:
+        logger = logging.getLogger("vulnews")
+        logger.setLevel(logging.DEBUG)
+        logger.addFilter(RedactingFilter())
 
     config = load_config(args.config)
 

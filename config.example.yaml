@@ -59,8 +59,9 @@ llm_local_chat_template: nemo
 #   \"summary\": \"Not a supply chain compromise.\"}" --skip-trust
 
 # Feed sources.
-# Types: rss (RSS/Atom polling), json (JSON Feed format), github_advisory (stub).
-# Tiers: 1 = real-time ingestion, 2 = deep forensics, 3 = foundational.
+# Types: rss (RSS/Atom polling), json (JSON Feed format), github_advisory (REST API).
+# Tiers: 1 = real-time, 2 = forensics, 3 = foundational.
+# NOTE: Tiers are currently for categorization only and do not affect runtime scheduling.
 sources:
   # --- Tier 1: Real-time ingestion and pre-execution telemetry ---
 

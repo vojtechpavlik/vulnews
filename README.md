@@ -19,6 +19,7 @@ VulNews operates through a multi-stage pipeline:
 -   **osc**: The `osc` command-line tool must be installed and configured for OBS impact assessment.
     -   On openSUSE/SUSE: `sudo zypper install osc`
 -   **Local LLM (Optional)**: If using the local LLM, a compatible GGUF model is required (automatically downloaded by default).
+    -   *Security Note*: The local LLM uses `diskcache`, which has a known vulnerability (`CVE-2025-69872`). As a mitigation, ensure that the `state_dir` (where the cache resides) is not writable by untrusted users.
 
 ## Installation
 

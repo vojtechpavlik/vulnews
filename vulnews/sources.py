@@ -95,10 +95,14 @@ class RSSSource(Source):
                         return [], state
 
                     content_length = resp.headers.get("Content-Length")
-                    if content_length and int(content_length) > MAX_FEED_SIZE:
-                        log.warning("Feed too large: %s (Content-Length: %s)",
-                                    self.config.name, content_length)
-                        return [], state
+                    if content_length:
+                        try:
+                            if int(content_length) > MAX_FEED_SIZE:
+                                log.warning("Feed too large: %s (Content-Length: %s)",
+                                            self.config.name, content_length)
+                                return [], state
+                        except ValueError:
+                            pass
 
                     chunks = []
                     size = 0
@@ -205,9 +209,13 @@ class GitHubAdvisorySource(Source):
                         return [], state
 
                     content_length = resp.headers.get("Content-Length")
-                    if content_length and int(content_length) > MAX_FEED_SIZE:
-                        log.warning("GitHub Advisory Feed too large: %s", self.config.name)
-                        return [], state
+                    if content_length:
+                        try:
+                            if int(content_length) > MAX_FEED_SIZE:
+                                log.warning("GitHub Advisory Feed too large: %s", self.config.name)
+                                return [], state
+                        except ValueError:
+                            pass
 
                     chunks = []
                     size = 0
@@ -272,9 +280,9 @@ class GitHubAdvisorySource(Source):
 
             articles.append(Article(
                 source_name=self.config.name,
-                title=adv.get("summary", "(no title)"),
-                url=adv.get("html_url", ""),
-                content=content,
+                title=scrub_text(adv.get("summary", "(no title)")),
+                url=scrub_text(adv.get("html_url", "")),
+                content=scrub_text(content),
                 published=published_at_str,
                 raw_id=adv.get("ghsa_id", ""),
                 structured_hints=hints,
@@ -314,10 +322,14 @@ class JSONSource(Source):
                         return [], state
 
                     content_length = resp.headers.get("Content-Length")
-                    if content_length and int(content_length) > MAX_FEED_SIZE:
-                        log.warning("JSON Feed too large: %s (Content-Length: %s)",
-                                    self.config.name, content_length)
-                        return [], state
+                    if content_length:
+                        try:
+                            if int(content_length) > MAX_FEED_SIZE:
+                                log.warning("JSON Feed too large: %s (Content-Length: %s)",
+                                            self.config.name, content_length)
+                                return [], state
+                        except ValueError:
+                            pass
 
                     chunks = []
                     size = 0
@@ -359,9 +371,9 @@ class JSONSource(Source):
 
             articles.append(Article(
                 source_name=self.config.name,
-                title=title,
-                url=link,
-                content=content_text,
+                title=scrub_text(title),
+                url=scrub_text(link),
+                content=scrub_text(content_text),
                 published=published,
                 raw_id=raw_id,
             ))

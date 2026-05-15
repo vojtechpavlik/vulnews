@@ -1,19 +1,27 @@
 # VulNews review findings
 
-## Verified status
+## Security and robustness
 
-- [x] Test suite currently passes (`126 passed`).
+- [x] **High**: Prevent sensitive token leakage in verbose logs.
+  - Action: set third-party loggers to INFO, and added `RedactingFilter` to application logs.
 
-## Security findings
+- [x] **Medium**: Address dependency vulnerability `CVE-2025-69872` in `diskcache==5.6.3`.
+  - Action: Documented runtime hardening assumption in README.md.
 
-- [x] **Medium:** Add response size limits and/or streaming guards when fetching/parsing feeds in `vulnews/sources.py` to prevent memory/CPU exhaustion from oversized feed bodies.
-- [x] **Low:** Replace or harden XML parsing in `vulnews/obs.py` (`ET.fromstring`) for untrusted XML input. (Fixed using `defusedxml`).
+- [x] **Medium**: Validate and sanitize `structured_hints` before applying Structured Bypass.
+  - Action: implemented regex validation for hinted fields in `pipeline.py`.
 
-## Functionality vs documentation discrepancies
+- [x] **Medium/Low**: Make sanitization consistent across source types.
+  - Action: applied `scrub_text` to all external fields in JSON and GitHub source adapters.
 
-- [x] `llm_local_chat_template` is documented/configurable but not used in `vulnews/llm.py`; either wire it into local LLM initialization or remove/update docs.
-- [x] `config.example.yaml` lists `socket-json` as `type: rss`, but current implementation handles RSS/Atom XML only; add JSON feed support or remove/fix this source.
+- [x] **Low**: Harden `Content-Length` parsing for feed downloads.
+  - Action: added `try...except ValueError` around `int()` conversion.
 
-## Functional bug
+- [x] **Low**: Reduce accidental local data leakage from repo artifacts.
+  - Action: extended `.gitignore` for logs and synthetic artifacts.
 
-- [x] Fix version-range matching in `vulnews/pipeline.py` (`if version in affected_versions`) to proper semantic range evaluation. Current logic misses valid matches (e.g. `1.0.4` vs `>=1.0.0,<1.0.5`) and can under-rate risk.
+## Functionality vs documentation
+
+- [x] Update docs: `config.example.yaml` comment updated (removed "stub").
+
+- [x] Clarify docs: Added note about `tier` usage in `config.example.yaml`.

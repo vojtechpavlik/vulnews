@@ -4,3 +4,14 @@ __pycache__/
 .venv/
 state/
 config.yaml
+
+# Logs
+*.log
+
+# Synthetic and temporary artifacts
+state_synthetic/
+config_synthetic.yaml
+fake_feed.xml
+fake_feed_bash.xml
+.claude/
+.pytest_cache/

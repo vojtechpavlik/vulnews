@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from dataclasses import asdict
 from datetime import UTC, datetime
@@ -98,9 +99,18 @@ class Pipeline:
         # Apply structured hints if available (Structured Bypass)
         # This prevents lossy conversion of machine-readable fields like version ranges.
         if article.structured_hints:
+            rules = {
+                "package_name": r"^[a-zA-Z0-9._/@-]+$",
+                "package_ecosystem": r"^[a-z0-9-]+$",
+                "affected_versions": r"^[a-zA-Z0-9.+-<>=|*, ]+$",
+            }
             for field, value in article.structured_hints.items():
                 if hasattr(result, field) and value:
-                    setattr(result, field, value)
+                    pattern = rules.get(field)
+                    if pattern and re.match(pattern, str(value)):
+                        setattr(result, field, value)
+                    else:
+                        log.debug("Ignoring invalid structured hint for %s: %s", field, value)
 
         if not result.is_compromise or result.confidence < self.config.confidence_threshold:
             log.info(
